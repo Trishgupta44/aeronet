@@ -6,7 +6,7 @@ condition at the trailing edge. This is a *stand-in* for the NNfoil PINN: real p
 the neural network.
 
 Local panel frame: x along the panel, y = left of the panel direction (the airfoil interior for
-clockwise node order). The outward normal is the right-hand normal (ty, -tx).
+counter-clockwise node order). The outward normal is the right-hand normal (ty, -tx).
 """
 
 from __future__ import annotations

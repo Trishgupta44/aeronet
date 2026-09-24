@@ -1,6 +1,6 @@
 """NACA 4-digit airfoil geometry.
 
-Chord = 1, leading edge at (0, 0). Nodes run clockwise: trailing edge -> upper surface ->
+Chord = 1, leading edge at (0, 0). Nodes run counter-clockwise (x right, y up): trailing edge -> upper surface ->
 leading edge -> lower surface -> trailing edge (the last node is *not* repeated).
 """
 

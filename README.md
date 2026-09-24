@@ -14,7 +14,8 @@ A physics-informed neural network (PINN) airfoil solver, built by verifying and 
 | `deliverables/4_Synopsis.docx` | 3-page synopsis |
 | `deliverables/5_Related_Papers_Guide.docx` | 2-page plain-language guide to 4 related papers (viva / interview) |
 | `deliverables/pdf/` | PDF copies of the documents; `deliverables/assets/` holds the figures |
-| `prototype/` | Working demo prototype (panel-method stand-in for the PINN) |
+| `app/` | **The proper project:** React (Vite) frontend + Python (FastAPI/NumPy) solver backend, same design and behaviour as the prototype. See `app/README.md`; start with `app/start.ps1` |
+| `prototype/` | Original single-file demo (plain HTML/CSS/JS), kept as the reference the app was ported from |
 | `prototype/solver.js` | Solver, geometry, and reference-file comparison |
 | `prototype/test_solver.js` | Sanity tests for the solver |
 | `prototype/reference_naca0012.js` | Sample of NNfoil's bundled FVM reference data (NACA0012, 200x100) |

@@ -5,7 +5,7 @@
  * (geometry -> Cp on surface, Cp field, Cl) are supplied by the trained NNfoil model.
  *
  * Conventions: chord = 1, leading edge at (0,0), freestream speed = 1.
- * Nodes run clockwise: trailing edge -> along upper surface -> leading edge -> lower surface -> trailing edge.
+ * Nodes run counter-clockwise (x right, y up): trailing edge -> along upper surface -> leading edge -> lower surface -> trailing edge.
  * Outward normal = right-hand normal of the panel direction.
  */
 (function (root) {
