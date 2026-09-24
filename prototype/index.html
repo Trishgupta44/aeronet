@@ -1,0 +1,375 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>AeroNet Prototype</title>
+<style>
+  :root {
+    --bg: #f5f6f8; --card: #ffffff; --ink: #1b1f27; --muted: #5d6675; --line: #dfe3ea;
+    --accent: #1f5fd6; --accent-ink: #ffffff; --warn-bg: #fff6df; --warn-ink: #6b4a00;
+    --up: #1f5fd6; --lo: #d9541e; --ref: #2b2f38; --grid: #e6e9ef; --ok: #17803d;
+    --plot-bg: #ffffff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #12151a; --card: #1a1e26; --ink: #e8ebf1; --muted: #98a2b3; --line: #2b313c;
+      --accent: #6ea0ff; --accent-ink: #0c1220; --warn-bg: #2b2411; --warn-ink: #f2d38a;
+      --up: #6ea0ff; --lo: #ff8a5c; --ref: #e8ebf1; --grid: #2a303b; --ok: #4cc272; --plot-bg: #1a1e26;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+    font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 20px 16px 48px; }
+  header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 16px; margin-bottom: 6px; }
+  h1 { margin: 0; font-size: 26px; letter-spacing: -0.01em; }
+  .sub { color: var(--muted); margin: 0 0 14px; }
+  .badge { font-size: 12px; font-weight: 600; padding: 3px 9px; border-radius: 999px;
+    background: var(--warn-bg); color: var(--warn-ink); }
+  .notice { background: var(--warn-bg); color: var(--warn-ink); border-radius: 10px; padding: 10px 14px;
+    font-size: 13.5px; margin-bottom: 16px; }
+  .layout { display: grid; grid-template-columns: 300px 1fr; gap: 16px; align-items: start; }
+  @media (max-width: 860px) { .layout { grid-template-columns: 1fr; } }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+  .card h2 { margin: 0 0 10px; font-size: 13px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+  .stack > * + * { margin-top: 16px; }
+  label.field { display: block; font-weight: 600; font-size: 14px; margin-bottom: 6px; }
+  .val { float: right; font-variant-numeric: tabular-nums; color: var(--accent); }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+  .seg { display: flex; flex-wrap: wrap; gap: 6px; }
+  .seg button, .btn { font: inherit; font-size: 13.5px; padding: 6px 11px; border-radius: 8px; cursor: pointer;
+    border: 1px solid var(--line); background: var(--card); color: var(--ink); }
+  .seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+  .seg button:disabled { opacity: .5; cursor: not-allowed; }
+  .seg button:focus-visible, .btn:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  input[type=text] { font: inherit; width: 84px; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--line);
+    background: var(--card); color: var(--ink); }
+  .hint { font-size: 12.5px; color: var(--muted); margin-top: 6px; }
+  .err { color: #c4321c; }
+  .canvas-box { position: relative; }
+  canvas { width: 100%; display: block; border-radius: 8px; }
+  .cbar { display: flex; align-items: center; gap: 10px; margin-top: 8px; font-size: 12.5px; color: var(--muted); }
+  .cbar .bar { flex: 1; height: 10px; border-radius: 5px; }
+  .metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; }
+  @media (max-width: 700px) { .metrics { grid-template-columns: repeat(2, 1fr); } }
+  .metric { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+  .metric .k { font-size: 12px; color: var(--muted); }
+  .metric .v { font-size: 22px; font-weight: 650; font-variant-numeric: tabular-nums; }
+  .metric .n { font-size: 12px; color: var(--muted); }
+  table { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+  th, td { text-align: left; padding: 7px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .05em; }
+  .live { color: var(--ok); font-weight: 600; }
+  .tbd { color: var(--muted); }
+  .steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 0; padding: 0; list-style: none; }
+  @media (max-width: 700px) { .steps { grid-template-columns: repeat(2, 1fr); } }
+  .steps li { border: 1px solid var(--line); border-radius: 10px; padding: 9px 11px; font-size: 13px; }
+  .steps b { display: block; font-size: 14px; }
+  .steps .done { border-color: var(--ok); }
+  .placeholder { border: 2px dashed var(--line); border-radius: 10px; padding: 18px; text-align: center; color: var(--muted); font-size: 13.5px; }
+  .upload { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .upload input[type=file] { font-size: 12.5px; max-width: 100%; }
+  .status { font-size: 13px; margin-top: 8px; }
+  .status.ok { color: var(--ok); }
+  ul.plain { margin: 6px 0 0; padding-left: 18px; font-size: 13.5px; }
+  ul.plain li { margin: 3px 0; }
+  .legend { display: flex; gap: 14px; flex-wrap: wrap; font-size: 12.5px; color: var(--muted); margin-top: 6px; }
+  .legend i { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 5px; vertical-align: -1px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>AeroNet</h1>
+    <span class="badge">PROTOTYPE</span>
+  </header>
+  <p class="sub">Airfoil flow explorer: pick a shape and angle of attack, see the pressure field and lift instantly.</p>
+  <div class="notice">
+    <b>Read this first.</b> This page shows how the final demo will look and behave. The solver running here is a
+    classical <b>panel method</b> (real physics, no neural network) standing in for the trained PINN. On Day 5 of the plan,
+    the PINN results replace it; the layout, controls and checks stay the same.
+  </div>
+
+  <div class="layout">
+    <!-- controls -->
+    <aside class="stack">
+      <section class="card">
+        <h2>1 · Solver</h2>
+        <div class="seg" role="group" aria-label="Solver source">
+          <button aria-pressed="true">Panel method</button>
+          <button disabled title="Available after the PINN is trained (Day 2-4)">NNfoil PINN</button>
+        </div>
+        <div class="hint">PINN option unlocks when a trained checkpoint is added (plan Day 5).</div>
+      </section>
+
+      <section class="card">
+        <h2>2 · Airfoil</h2>
+        <div class="seg" id="presets" role="group" aria-label="Airfoil presets">
+          <button data-code="0012" aria-pressed="true">NACA 0012</button>
+          <button data-code="2412" aria-pressed="false">NACA 2412</button>
+          <button data-code="4412" aria-pressed="false">NACA 4412</button>
+        </div>
+        <div style="margin-top:10px">
+          <label class="field" for="custom">Custom 4-digit code</label>
+          <input type="text" id="custom" maxlength="4" inputmode="numeric" placeholder="e.g. 2315" aria-describedby="customHint">
+          <div class="hint err" id="customHint" role="status"></div>
+        </div>
+        <div class="hint">Final demo lists only shapes that have a trained model (NACA 0012, 2412 and the bundled random airfoils).</div>
+      </section>
+
+      <section class="card">
+        <h2>3 · Flow conditions</h2>
+        <label class="field" for="alpha">Angle of attack <span class="val" id="alphaV"></span></label>
+        <input type="range" id="alpha" min="-10" max="12" step="0.5" value="4">
+        <label class="field" for="mach" style="margin-top:14px">Mach number <span class="val" id="machV"></span></label>
+        <input type="range" id="mach" min="0" max="0.7" step="0.05" value="0.4">
+        <div class="hint">Subsonic only (Ma &lt; 0.7). Reference data was computed at 4° and Mach 0.4.</div>
+      </section>
+
+      <section class="card">
+        <h2>4 · Compare with reference</h2>
+        <div class="upload">
+          <button class="btn" id="loadSample">Load bundled FVM sample</button>
+          <button class="btn" id="clearRef">Clear</button>
+        </div>
+        <div style="margin-top:8px"><label for="file" class="hint">Or load your own NNfoil <code>*_Cp.dat</code> file:</label>
+          <input type="file" id="file" accept=".dat,.txt"></div>
+        <div class="status" id="refStatus" role="status"></div>
+      </section>
+    </aside>
+
+    <!-- outputs -->
+    <main class="stack">
+      <section class="card">
+        <h2>Pressure field (Cp)</h2>
+        <div class="canvas-box"><canvas id="field" aria-label="Pressure coefficient field around the airfoil" role="img"></canvas></div>
+        <div class="cbar"><span>−2 suction</span><div class="bar" id="bar"></div><span>+1 stagnation</span></div>
+      </section>
+
+      <section class="card">
+        <h2>Results</h2>
+        <div class="metrics">
+          <div class="metric"><div class="k">Lift coefficient Cl</div><div class="v" id="mCl">–</div><div class="n">from surface pressure</div></div>
+          <div class="metric"><div class="k">Thin-airfoil theory</div><div class="v" id="mThin">–</div><div class="n">quick sanity check</div></div>
+          <div class="metric"><div class="k">Drag Cd (error only)</div><div class="v" id="mCd">–</div><div class="n">ideal value is 0</div></div>
+          <div class="metric"><div class="k">Solve time</div><div class="v" id="mMs">–</div><div class="n">measured in your browser</div></div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Surface pressure distribution</h2>
+        <canvas id="cp" aria-label="Cp versus chord position" role="img"></canvas>
+        <div class="legend">
+          <span><i style="background:var(--up)"></i>upper surface</span>
+          <span><i style="background:var(--lo)"></i>lower surface</span>
+          <span><i style="background:transparent;border:1.5px solid var(--ref)"></i>reference (FVM)</span>
+        </div>
+        <div class="status" id="cmpStatus" role="status"></div>
+      </section>
+
+      <section class="card">
+        <h2>Speed and accuracy comparison</h2>
+        <div style="overflow-x:auto">
+        <table>
+          <thead><tr><th>Method</th><th>Setup</th><th>Per new query</th><th>Physics</th><th>Data needed</th></tr></thead>
+          <tbody>
+            <tr><td class="live">Panel method (this page)</td><td>none</td><td class="live" id="tMs">–</td><td>potential flow + Prandtl–Glauert</td><td>none</td></tr>
+            <tr><td>NNfoil PINN</td><td class="tbd">training time: measure Day 2-4</td><td class="tbd">inference: measure Day 4</td><td>Euler equations</td><td>none</td></tr>
+            <tr><td>FVM (bundled Cp files)</td><td>none</td><td class="tbd">full re-solve; quote time from NNfoil paper</td><td>Euler equations</td><td>none</td></tr>
+            <tr><td>NeuralFoil <span class="tbd">(paper, Table 3)</span></td><td>pre-trained</td><td>1.2 ms per run (XFoil: 73 ms)</td><td>viscous, learned</td><td>7.9 million XFoil runs</td></tr>
+          </tbody>
+        </table></div>
+      </section>
+
+      <section class="card">
+        <h2>Training history</h2>
+        <div class="placeholder">Loss-vs-time curve from the PINN training log appears here once a run is logged (plan Day 2-3).<br>Nothing is shown now on purpose: there is no fake data on this page.</div>
+      </section>
+
+      <section class="card">
+        <h2>Project pipeline and what is real in this prototype</h2>
+        <ol class="steps">
+          <li class="done"><b>Demo ✓</b>layout, controls, Cp field, Cl checks</li>
+          <li><b>Verify</b>code review, 3 known issues</li>
+          <li><b>Train</b>NNfoil on CPU (small meshes)</li>
+          <li><b>Validate</b>PINN vs FVM error tables</li>
+        </ol>
+        <ul class="plain">
+          <li><b>Real now:</b> airfoil geometry, panel solver, Cp field and curve, Cl from pressure, thin-airfoil check, Mach correction, reference-file overlay with RMS error, timing.</li>
+          <li><b>Stand-in:</b> the solver itself (PINN replaces it). Mach uses the Prandtl–Glauert rule, an approximation of the compressible Euler flow NNfoil solves.</li>
+          <li><b>Not built yet:</b> PINN backend, training history, shape list from trained models, UIUC shapes.</li>
+        </ul>
+        <div class="hint">Scope: inviscid, subsonic flow. A fast screening tool that complements, not replaces, high-fidelity CFD.</div>
+      </section>
+    </main>
+  </div>
+</div>
+
+<script src="solver.js"></script>
+<script src="reference_naca0012.js"></script>
+<script>
+(function () {
+  'use strict';
+  const S = window.AeroSolver;
+  const $ = (id) => document.getElementById(id);
+  const state = { code: '0012', alpha: 4, mach: 0.4, ref: null, refName: '' };
+  const STOPS = [[-2, [26, 63, 156]], [-1, [79, 134, 217]], [0, [244, 243, 238]], [0.5, [240, 160, 90]], [1, [194, 59, 34]]];
+  const XMIN = -0.4, XMAX = 1.4, YSPAN = (XMAX - XMIN) / 1.8;
+
+  function cmap(v) {
+    v = Math.max(-2, Math.min(1, v));
+    for (let i = 0; i + 1 < STOPS.length; i++) {
+      if (v <= STOPS[i + 1][0]) {
+        const f = (v - STOPS[i][0]) / (STOPS[i + 1][0] - STOPS[i][0]), a = STOPS[i][1], b = STOPS[i + 1][1];
+        return [a[0] + f * (b[0] - a[0]), a[1] + f * (b[1] - a[1]), a[2] + f * (b[2] - a[2])];
+      }
+    }
+    return STOPS[STOPS.length - 1][1];
+  }
+  $('bar').style.background = 'linear-gradient(90deg,' + STOPS.map((s, i) => 'rgb(' + s[1].join(',') + ') ' + (i / (STOPS.length - 1) * 100) + '%').join(',') + ')';
+
+  function setupCanvas(c, h) {
+    const dpr = window.devicePixelRatio || 1, w = c.parentElement.clientWidth;
+    c.style.height = h + 'px'; c.width = Math.round(w * dpr); c.height = Math.round(h * dpr);
+    const g = c.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return { g, w, h };
+  }
+  const css = (n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+
+  // ---------- pressure field ----------
+  const off = document.createElement('canvas');
+  function drawField(res, fast) {
+    const c = $('field'), w = c.parentElement.clientWidth, h = Math.round(w / 1.8);
+    const { g } = setupCanvas(c, h);
+    const gw = fast ? 100 : 170, gh = Math.round(gw / 1.8);
+    off.width = gw; off.height = gh;
+    const og = off.getContext('2d'), img = og.createImageData(gw, gh), YMIN = -YSPAN / 2 * 1;
+    const ymax = 0.5, ymin = -0.5;
+    for (let j = 0; j < gh; j++) {
+      const y = ymax - (j + 0.5) / gh * (ymax - ymin);
+      for (let i = 0; i < gw; i++) {
+        const x = XMIN + (i + 0.5) / gw * (XMAX - XMIN), k = (j * gw + i) * 4;
+        if (S.insideBody(res.X, res.Y, x, y)) { img.data[k + 3] = 0; continue; }
+        const col = cmap(S.fieldCp(res, x, y));
+        img.data[k] = col[0]; img.data[k + 1] = col[1]; img.data[k + 2] = col[2]; img.data[k + 3] = 255;
+      }
+    }
+    og.putImageData(img, 0, 0);
+    g.fillStyle = '#f4f3ee'; g.fillRect(0, 0, w, h);
+    g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high';
+    g.drawImage(off, 0, 0, w, h);
+    const px = (x) => (x - XMIN) / (XMAX - XMIN) * w, py = (y) => (ymax - y) / (ymax - ymin) * h;
+    g.beginPath();
+    res.X.forEach((x, i) => { const X = px(x), Y = py(res.Y[i]); i ? g.lineTo(X, Y) : g.moveTo(X, Y); });
+    g.closePath(); g.fillStyle = '#20242c'; g.fill(); g.strokeStyle = '#0c0e12'; g.lineWidth = 1.2; g.stroke();
+    // freestream arrow
+    const ax = 34, ay = h / 2, L = 44, a = res.a;
+    g.strokeStyle = '#20242c'; g.fillStyle = '#20242c'; g.lineWidth = 2;
+    g.beginPath(); g.moveTo(ax, ay); g.lineTo(ax + L * Math.cos(a), ay - L * Math.sin(a)); g.stroke();
+    const ex = ax + L * Math.cos(a), ey = ay - L * Math.sin(a);
+    g.beginPath(); g.moveTo(ex, ey);
+    g.lineTo(ex - 9 * Math.cos(a - 0.45), ey + 9 * Math.sin(a - 0.45));
+    g.lineTo(ex - 9 * Math.cos(a + 0.45), ey + 9 * Math.sin(a + 0.45)); g.closePath(); g.fill();
+    g.font = '12px system-ui'; g.fillText('freestream', ax - 8, ay + 30);
+  }
+
+  // ---------- Cp curve ----------
+  function drawCp(res) {
+    const c = $('cp'), { g, w, h } = setupCanvas(c, Math.max(260, Math.min(360, $('cp').parentElement.clientWidth * 0.45)));
+    const m = { l: 46, r: 14, t: 12, b: 34 };
+    const cps = res.Cp.slice(); if (state.ref) state.ref.forEach((p) => cps.push(p[2]));
+    const lo = Math.min(-1, Math.floor((Math.min.apply(null, cps) - 0.1) * 2) / 2), hi = 1.5;
+    const X = (x) => m.l + x * (w - m.l - m.r), Y = (v) => m.t + (v - lo) / (hi - lo) * (h - m.t - m.b); // inverted axis
+    g.fillStyle = css('--plot-bg'); g.fillRect(0, 0, w, h);
+    g.font = '12px system-ui'; g.fillStyle = css('--muted'); g.strokeStyle = css('--grid'); g.lineWidth = 1;
+    for (let v = Math.ceil(lo); v <= hi; v += 0.5) {
+      g.beginPath(); g.moveTo(m.l, Y(v)); g.lineTo(w - m.r, Y(v)); g.stroke();
+      g.textAlign = 'right'; g.fillText(v.toFixed(1), m.l - 6, Y(v) + 4);
+    }
+    for (let x = 0; x <= 1.001; x += 0.25) {
+      g.beginPath(); g.moveTo(X(x), m.t); g.lineTo(X(x), h - m.b); g.stroke();
+      g.textAlign = 'center'; g.fillText(x.toFixed(2), X(x), h - m.b + 16);
+    }
+    g.fillText('x / chord', (m.l + w - m.r) / 2, h - 6);
+    g.save(); g.translate(12, (m.t + h - m.b) / 2); g.rotate(-Math.PI / 2); g.textAlign = 'center'; g.fillText('Cp (suction is up)', 0, 0); g.restore();
+    const up = [], lw = [];
+    res.P.forEach((p, i) => (p.cy >= res.geo.camber(p.cx) ? up : lw).push([p.cx, res.Cp[i]]));
+    [[up, '--up'], [lw, '--lo']].forEach(([arr, col]) => {
+      arr.sort((a, b) => a[0] - b[0]); g.strokeStyle = css(col); g.lineWidth = 2; g.beginPath();
+      arr.forEach((p, i) => (i ? g.lineTo(X(p[0]), Y(p[1])) : g.moveTo(X(p[0]), Y(p[1])))); g.stroke();
+    });
+    if (state.ref) {
+      g.strokeStyle = css('--ref'); g.lineWidth = 1.2;
+      state.ref.forEach((p) => { g.beginPath(); g.arc(X(p[0]), Y(p[2]), 2.6, 0, 6.2832); g.stroke(); });
+    }
+  }
+
+  // ---------- update ----------
+  function update(fast) {
+    const res = S.solve(state.code, state.alpha, state.mach, 70);
+    drawField(res, fast); drawCp(res);
+    $('mCl').textContent = res.Cl.toFixed(3);
+    $('mThin').textContent = res.thin.toFixed(3);
+    $('mCd').textContent = res.Cd.toFixed(4);
+    $('mMs').textContent = res.ms.toFixed(1) + ' ms';
+    $('tMs').textContent = res.ms.toFixed(1) + ' ms (measured now)';
+    const st = $('cmpStatus');
+    if (state.ref) {
+      const cmp = S.compareCp(res, state.ref);
+      st.className = 'status';
+      st.innerHTML = 'Difference vs ' + state.refName + ': <b>RMS ' + cmp.rms.toFixed(3) + '</b>, max ' + cmp.max.toFixed(3) +
+        ' (' + cmp.n + ' points). Only meaningful when airfoil, angle and Mach match the reference (bundled NACA0012 sample: 0012, 4°, Mach 0.4).';
+    } else { st.textContent = ''; }
+  }
+
+  let raf = 0, timer = 0;
+  function schedule() {
+    cancelAnimationFrame(raf); clearTimeout(timer);
+    raf = requestAnimationFrame(() => update(true));
+    timer = setTimeout(() => update(false), 180);
+  }
+
+  // ---------- controls ----------
+  function setCode(code) {
+    state.code = code;
+    document.querySelectorAll('#presets button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.code === code)));
+    schedule();
+  }
+  document.querySelectorAll('#presets button').forEach((b) => b.addEventListener('click', () => { $('custom').value = ''; $('customHint').textContent = ''; setCode(b.dataset.code); }));
+  $('custom').addEventListener('input', (e) => {
+    const v = e.target.value, hint = $('customHint');
+    if (!/^\d{4}$/.test(v)) { hint.textContent = v.length ? 'Enter exactly 4 digits.' : ''; return; }
+    const m = +v[0], p = +v[1], t = +v.slice(2);
+    if (t < 4) { hint.textContent = 'Thickness (last two digits) must be at least 04.'; return; }
+    if (m > 0 && p < 1) { hint.textContent = 'Camber position (2nd digit) must be 1-9 when camber is not 0.'; return; }
+    hint.textContent = ''; setCode(v);
+  });
+  $('alpha').addEventListener('input', (e) => { state.alpha = +e.target.value; $('alphaV').textContent = state.alpha.toFixed(1) + '°'; schedule(); });
+  $('mach').addEventListener('input', (e) => { state.mach = +e.target.value; $('machV').textContent = state.mach.toFixed(2); schedule(); });
+  $('alphaV').textContent = '4.0°'; $('machV').textContent = '0.40';
+
+  function setRef(pts, name) {
+    const st = $('refStatus');
+    if (!pts.length) { st.className = 'status err'; st.textContent = 'Could not read any "node x y Cp" rows from that file.'; return; }
+    state.ref = pts; state.refName = name; st.className = 'status ok'; st.textContent = 'Loaded ' + pts.length + ' points from ' + name + '.'; schedule();
+  }
+  $('loadSample').addEventListener('click', () => {
+    setCode('0012'); $('custom').value = '';
+    state.alpha = 4; state.mach = 0.4; $('alpha').value = 4; $('mach').value = 0.4;
+    $('alphaV').textContent = '4.0°'; $('machV').textContent = '0.40';
+    setRef(S.parseReference(window.SAMPLE_REF), 'NACA0012 200×100 FVM sample');
+  });
+  $('clearRef').addEventListener('click', () => { state.ref = null; $('refStatus').textContent = ''; schedule(); });
+  $('file').addEventListener('change', (e) => {
+    const f = e.target.files[0]; if (!f) return;
+    const r = new FileReader(); r.onload = () => setRef(S.parseReference(String(r.result)), f.name); r.readAsText(f);
+  });
+  window.addEventListener('resize', schedule);
+  if (/[?&]light/.test(location.search)) document.documentElement.dataset.theme = 'light'; // ?light forces the light theme (used for printed figures)
+  update(false);
+  if (/[?&]sample/.test(location.search)) $('loadSample').click(); // ?sample opens the page with the reference overlay loaded
+})();
+</script>
+</body>
+</html>
