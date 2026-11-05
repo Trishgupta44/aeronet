@@ -6,3 +6,4 @@ Line numbers refer to the upstream files in that commit. `git log NNfoil/` shows
 | Finding | File:line (upstream) | Change | Commit |
 |---|---|---|---|
 | 1 | NNfoil_Euler2D.py:269 | `pick_device()` returns CPU when CUDA is unavailable (also `matplotlib.use("Agg")` in util.py so imports work headless) | <hash-1> |
+| 5 | NNfoil_Euler2D.py:110 | `np.math.factorial` (removed in NumPy 2) replaced by `math.factorial` | <hash-5> |

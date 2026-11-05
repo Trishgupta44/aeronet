@@ -6,6 +6,7 @@ import scipy.io
 from torch.optim import lr_scheduler
 import torch.nn.utils.weight_norm as weight_norm
 import time
+import math
 from util import jacobian_trans, fwd_gradients
 import pickle
 
@@ -110,7 +111,7 @@ class NNfoil():
         num = x_cor.shape[0]
         mx = np.empty([num, self.degree+1])
         for index in range(self.degree+1):
-            f = np.math.factorial(self.degree) / (np.math.factorial(index) * np.math.factorial(self.degree-index))
+            f = math.factorial(self.degree) / (math.factorial(index) * math.factorial(self.degree-index))
             mx[:, index] = f * np.power(x_cor, index+self.n_1) * np.power(1-x_cor, self.degree-index+self.n_2)
         mx = torch.tensor(mx).float()
         return mx
