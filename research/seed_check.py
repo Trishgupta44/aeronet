@@ -41,11 +41,14 @@ DEFAULT_REF = REPO / "NNfoil" / "FVM_Cp" / "NACA0012_800_400_Cp.dat"
 
 
 def _load(run: Path):
-    files = [run / n for n in ("config.json", "log.json", "snapshots.json")]
-    if not all(f.exists() for f in files):
+    cfg_f, log_f, snap_f = (run / n for n in ("config.json", "log.json", "snapshots.json"))
+    if not (cfg_f.exists() and log_f.exists()):
         return None
     try:
-        return tuple(json.loads(f.read_text(encoding="utf8")) for f in files)
+        cfg, log = (json.loads(f.read_text(encoding="utf8")) for f in (cfg_f, log_f))
+        # A run whose every round failed never writes snapshots.json: that run is a collapse, not "missing".
+        snap = json.loads(snap_f.read_text(encoding="utf8")) if snap_f.exists() else {"x": [], "y": [], "rounds": []}
+        return cfg, log, snap
     except json.JSONDecodeError:  # a file caught mid-write by a running chain
         return None
 

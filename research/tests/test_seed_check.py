@@ -113,3 +113,20 @@ def test_main_writes_csv_and_prints_verdicts(runs, ref_file, tmp_path, capsys):
     assert cold_pos0["cl_after_transfer"] == ""  # empty cells stay empty
     text = capsys.readouterr().out
     assert "[nopos] cold start collapses in at least 1 of 3 seeds: yes (1 of 3)" in text
+
+
+def test_run_where_every_round_failed_counts_as_collapsed(tmp_path, ref_file):
+    """Such a run writes config.json and log.json but never snapshots.json (nothing succeeded)."""
+    root = tmp_path / "runs"
+    d = root / "naca0012_100x50_a4_m04_nopos_s3"
+    d.mkdir(parents=True)
+    cfg = {"shape": "NACA0012", "mesh": "100x50", "positivity": False, "seed": 3, "rounds": 5,
+           "run_id": d.name, "alpha": 4.0}
+    log = {"round": [], "time_s": [], "loss": [], "loss_f": [], "loss_b": [], "cl": [], "cd": [], "failed_rounds": 5}
+    (d / "config.json").write_text(json.dumps(cfg))
+    (d / "log.json").write_text(json.dumps(log))
+    rows = seed_check.collect(root, ref_file)
+    assert len(rows) == 1
+    r = rows[0]
+    assert r["collapsed"] == "yes" and r["complete"] == "yes" and r["rounds"] == 0 and r["failed_rounds"] == 5
+    assert r["final_cl"] is None and r["seconds"] is None
