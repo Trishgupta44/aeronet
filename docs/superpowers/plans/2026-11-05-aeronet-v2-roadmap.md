@@ -76,6 +76,18 @@ results) and a project with solid measured numbers. Deliver everything the exist
    the same mesh. It is not in the NNfoil paper. Full details and further ideas: `docs/nnfoil_improvements.md`.
    Plan A task A12a implements it; Plan C uses it for the 100×50 and 200×100 results (C2) and adds ablations
    (C11).
+8e. **Accuracy peaks early, then drifts while the loss keeps falling (measured, 50×25, positivity on, 19
+   good rounds, 5.5 min total on an idle CPU).** Cp RMS vs FVM 800×400 by round: 0.193, 0.037, 0.030, 0.0275,
+   0.030, 0.029, 0.034, then 0.068, 0.056 ... **0.073 at round 19**. Cl: 0.307, 0.478, 0.497, 0.499, 0.493,
+   0.501, 0.482, then 0.41–0.44. The residual loss fell the whole time (1.1e-4 at round 3 against 7e-5 at
+   round 19). The Euler residual does not pin the circulation (nothing enforces a Kutta condition, finding
+   N22 in `docs/nnfoil_improvements.md`), so lower loss does not mean a better Cl. The final round is still
+   better in Cp than the FVM on the same mesh (0.073 against 0.108), but its Cl (0.412) is no better than the
+   FVM's (0.4265). Report the whole trajectory, not only the best round. Choosing a round after seeing the FVM
+   error is post-hoc: label it so. Most rounds after round 3 stopped after 2–26 s (L-BFGS tolerance), so the
+   run did far fewer iterations than the paper's 20,000. Candidate remedies (Plan C, E6/C11): a panel-method
+   prior that carries the right circulation (idea I2 in the research doc), periodic input, and averaging or
+   early stopping on a held-out criterion that does not use the FVM.
 8c. **The FVM Cp files are not stored in contour order.** Integrating Cl directly from them gives nonsense
    (0.355). Sort the points by angle about the centroid first (`metrics.order_contour`).
 9. **The "draw any shape" route works.** A prototype that resamples any closed curve and runs the panel
