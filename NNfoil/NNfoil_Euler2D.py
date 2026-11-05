@@ -50,11 +50,12 @@ class Net(torch.nn.Module):
 class NNfoil():
     
     def __init__(self, layers, device, xx, yy, Ma=0.4, alpha_deg=4.0, positivity=True, ckpt_path='model_temp.pth',
-                 periodic_jacobian=False):
+                 periodic_jacobian=False, lbfgs_max_iter=1000):
 
         self.layers = layers
         self.device = device
         self.ckpt_path = ckpt_path
+        self.lbfgs_max_iter = int(lbfgs_max_iter)  # L-BFGS iterations per train() round (upstream hard-coded 1000)
         self.positivity = positivity
         self.periodic_jacobian = periodic_jacobian  # opt-in: periodic xi differencing at the trailing-edge seam (finding 10)
         self.wall = {}
@@ -265,7 +266,7 @@ class NNfoil():
 
             # self.batch_ind = np.random.choice(self.XE.shape[0], 30000)
             self.batch_ind = np.random.choice(self.XE.shape[0], int(min(self.XE.shape[0]*0.8,20000)), replace=False)
-            self.optimizer = torch.optim.LBFGS(self.model.parameters(), max_iter=1000, history_size=1000,
+            self.optimizer = torch.optim.LBFGS(self.model.parameters(), max_iter=self.lbfgs_max_iter, history_size=1000,
                                                tolerance_grad=1e-6, tolerance_change=1e-10)
             self.optimizer.step(closure)
             
