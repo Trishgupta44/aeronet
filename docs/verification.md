@@ -60,6 +60,23 @@ With V = (u, v), D/Dt = V . grad in the steady case.
   The last term comes from rho V . grad h with h = gamma p / ((gamma - 1) rho) and V . grad rho = e1 - rho div V.
 - Solving for e4: e4 = (gamma - 1)(CE + (\|V\|^2 / 2) C1 - u Cx - v Cy). This is the identity the test uses.
 
+## Reference data conditions
+
+Read from the paper's PDF text (arXiv 2401.08705, text extracted with `pdftotext`; the Greek symbols and degree signs
+were lost in the extraction, so angles are read from the surrounding sentence). All values in this section are
+**quoted** from the paper; nothing was re-run. The earlier panel-method fit of the Mach number is labelled **fitted**.
+
+| Bundled data | Condition in the paper | Where | Check against our fit |
+|---|---|---|---|
+| `FVM_Cp/NACA0012_*` | Ma 0.4, angle of attack 4 degrees, meshes refined from 50x25 to 400x200 | sec 3.2 | panel method matches the 800x400 file at Ma 0.4 (measured, `results/summary.csv`, B0) |
+| `FVM_Cp/Cylinder_*` | "Ma = 0.4" with angle of attack 0 (the cylinder is the thickest ellipse) | sec 3.1 | agrees with the fitted stagnation point and Cp (measured earlier, roadmap finding 4) |
+| `FVM_Cp_NACA2412/*AoA*` | NACA 2412, "Ma = 0.3", angle of attack in [-10, 10] degrees | sec 3.4 | our panel fit preferred Ma 0.25 (**fitted**; Cp RMS 0.0121 at 0.25, 0.0142 at 0.3, 0.0332 at 0.4 for the 4-degree file). The paper's 0.3 is used for Plan C; the small difference is inside what a Prandtl-Glauert panel method can resolve |
+| `FVM_Cp_random_airfoil/Airfoil1..5` (Table 2 cases 1 to 5) | (Ma, angle of attack): 0.28 and 6.1; 0.24 and -3.0; 0.41 and -3.5; 0.68 and 1.8; 0.34 and 4.9 | sec 3.3, Table 2 | our fits agreed only roughly (Airfoil1 about 0.25 and 6 degrees; Airfoil5 about 0.45 and 4.5 degrees); use the paper's values. Case 4 (Ma 0.68) has a shock that NNfoil does not capture, per the paper |
+
+FVM and NNfoil wall times quoted from Table 1 (NACA 0012, 4 degrees, Ma 0.4): FVM 9 s, 24 s, 53 s, 285 s and NNfoil
+384 s, 266 s, 262 s, 271 s for 50x25, 100x50, 200x100, 400x200. The paper says the table "is not meant as a rigorous
+comparison" and that LBFGS often stops early. Parametric NNfoil on NACA 2412 (sec 3.4): training wall time 1543 s.
+
 ## Notes on the evidence
 
 - `test_e1_e4_equal_conservative_euler_residuals` builds an analytic polar mesh (64 x 30, radii 0.5 to 6) and a smooth

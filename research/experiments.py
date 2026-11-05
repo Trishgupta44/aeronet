@@ -1,7 +1,7 @@
-"""Experiment drivers (Plan C): print the training commands, then turn finished run folders into summary rows.
+"""Experiment drivers E1-E3 (Plan C): print the training commands, then turn finished run folders into summary rows.
 
-    research/.venv/Scripts/python research/experiments.py commands e1|e2   # one shell line per run, nothing is run
-    research/.venv/Scripts/python research/experiments.py collect  e1|e2   # finished runs -> results/summary.csv
+    research/.venv/Scripts/python research/experiments.py commands e1|e2|e3   # one shell line per run, nothing is run
+    research/.venv/Scripts/python research/experiments.py collect  e1|e2|e3   # finished runs -> results/summary.csv
 
 ``commands`` only prints (it skips runs that already have the requested number of attempted rounds, and prints a
 ``--resume`` line for a partial run). Run the printed lines one after another (parallel runs spoil the timing numbers),
@@ -9,6 +9,7 @@ then run ``collect``. Every figure is made by ``make_figures.py``, never here.
 
 E1  positivity on/off, NACA 0012 50x25, Ma 0.4, 4 deg, seeds 0-2, 20 rounds (seed 0 = the Plan A runs).
 E2  mesh size vs Cp error against FVM 800x400: FVM, panel and PINN (the 200x100 run is chained from 50x25 -> 100x50).
+E3  NACA 2412 at Ma 0.3 (quoted from the paper): FVM / panel / thin-airfoil polar points and PINN runs at 4 angles.
 """
 
 from __future__ import annotations
@@ -29,16 +30,27 @@ for _p in (HERE, ROOT / "app" / "backend"):
         sys.path.insert(0, str(_p))
 
 import metrics  # noqa: E402
+import ogrid  # noqa: E402
 import runs  # noqa: E402
 import validate  # noqa: E402
 
 REF0012 = runs.FVM["NACA0012"]
 MESH_DIR = ROOT / "NNfoil" / "mesh"
+RESULTS_MESH_DIR = ROOT / "results" / "meshes"
 FVM_DIR = ROOT / "NNfoil" / "FVM_Cp"
 MACH, ALPHA = 0.4, 4
 E1_ROUNDS = 20
+E3_ROUNDS = 10
 BUDGET_S = 3 * 3600  # roadmap rule 4
 FVM_MESHES = [("50x25", "50_25"), ("100x50", "100_50"), ("200x100", "200_100"), ("400x200", "400_200")]
+
+E3_MACH = 0.3
+E3_MACH_NOTE = ("Ma 0.3 quoted from arXiv 2401.08705 sec 3.4 (not stored in the Cp files; the panel-method fit "
+                "of the files prefers about 0.25)")
+E3_ALPHAS = list(range(-10, 11, 2))
+E3_PINN_ALPHAS = [-4, 0, 4, 8]
+E3_MESH_NOTE = ("mesh results/meshes/NACA2412_100_50.x: cosine wall from the bundled 200x100 wall, O-grid with the "
+                "upstream cross coefficient 0.5 so that it matches how the bundled NACA 0012 meshes were made")
 
 
 def _r(v, nd=6):
@@ -100,6 +112,12 @@ def e2_200_spec(runs_root, mode="nopos", rounds=1):
                  rounds=rounds, mesh_file="NNfoil/mesh/NACA0012_200_100.x", grid_seq=True, init_from=_rel(parent)), parent
 
 
+def e3_specs(runs_root=runs.RUNS, mesh_dir=None, rounds=E3_ROUNDS):
+    mesh_dir = Path(mesh_dir) if mesh_dir is not None else RESULTS_MESH_DIR
+    return [_spec(runs_root, shape="NACA2412", mesh_tag="100_50", mesh="100x50", alpha=a, mach=E3_MACH, positivity=True,
+                  rounds=rounds, mesh_file=_rel(mesh_dir / "NACA2412_100_50.x")) for a in E3_PINN_ALPHAS]
+
+
 def _command_for(spec, threads, notes):
     """The shell line for one run, or None when it is finished (or cannot continue)."""
     d = spec["dir"]
@@ -150,6 +168,9 @@ def plan_commands(exp, runs_root=runs.RUNS, mode="nopos", mesh_dir=None, threads
             notes.append(f"{spec['name']}: probe of 1 round; when it is done run `commands e2` again for the rest "
                          f"(rounds = min(20, floor(3 h / time of round 1)), at least 3, else skip)")
         specs = [spec]
+    elif exp == "e3":
+        paths = ensure_e3_meshes(mesh_dir)
+        specs = e3_specs(runs_root, Path(paths["upstream"]).parent, rounds or E3_ROUNDS)
     else:
         raise SystemExit(f"unknown experiment {exp!r}")
     lines = []
@@ -158,6 +179,23 @@ def plan_commands(exp, runs_root=runs.RUNS, mode="nopos", mesh_dir=None, threads
         if line:
             lines.append(line)
     return lines, notes
+
+
+# ---------------------------------------------------------------- meshes for E3
+def ensure_e3_meshes(out_dir=None, force=False) -> dict:
+    """NACA 2412 100x50 meshes: ``upstream`` (cross coefficient 0.5, used by E3) and ``winslow2`` (2.0, for comparison)."""
+    out_dir = Path(out_dir) if out_dir is not None else RESULTS_MESH_DIR
+    out_dir.mkdir(parents=True, exist_ok=True)
+    paths = {"upstream": out_dir / "NACA2412_100_50.x", "winslow2": out_dir / "NACA2412_100_50_winslow2.x"}
+    if force or not all(p.exists() for p in paths.values()):
+        xx, yy = metrics.load_mesh(MESH_DIR / "NACA2412_200_100.x")
+        xw, yw = ogrid.cosine_wall(xx[:-1, 0], yy[:-1, 0], 100)
+        for key, cc in (("upstream", 0.5), ("winslow2", 2.0)):
+            X, Y, iters, change = ogrid.ogrid(xw, yw, 50, cross_coeff=cc)
+            if not (ogrid.is_valid(X, Y) and change < 1e-5):
+                raise SystemExit(f"NACA2412 100x50 O-grid (cross_coeff {cc}) is not valid (change {change:.2g})")
+            ogrid.write_x(paths[key], X, Y)
+    return paths
 
 
 # ---------------------------------------------------------------- rows
@@ -264,6 +302,41 @@ def panel_row():
             "notes": "reference: FVM 800x400; Hess-Smith panel method with Prandtl-Glauert"}
 
 
+def e3_fvm_rows():
+    return [{"experiment": "E3", "case": f"NACA2412_a{a}", "method": "fvm", "mesh": "800x400", "mach": E3_MACH,
+             "alpha_deg": a, "rms_cp": None, "max_cp": None, "cl": _r((cl := metrics.fvm_forces(runs.fvm_2412(a), a))[0]),
+             "cl_ref": _r(cl[0]), "cd": _r(cl[1]), "train_s": None, "infer_ms": None, "source": "measured",
+             "notes": f"the reference itself (Cl from the ordered Cp file); {E3_MACH_NOTE}"} for a in E3_ALPHAS]
+
+
+def e3_panel_rows():
+    from aeronet import panel
+
+    rows = []
+    for a in E3_ALPHAS:
+        path = runs.fvm_2412(a)
+        ref = metrics.load_fvm(path)
+        sol = panel.solve("2412", a, E3_MACH, 70)
+        err = metrics.cp_error(sol.geom.cx, sol.geom.cy, sol.cp, ref)
+        cl_f, _ = metrics.fvm_forces(path, a)
+        rows.append({"experiment": "E3", "case": f"NACA2412_a{a}", "method": "panel", "mesh": f"{sol.n} panels",
+                     "mach": E3_MACH, "alpha_deg": a, "rms_cp": _r(err["rms"]), "max_cp": _r(err["max"]),
+                     "cl": _r(sol.cl), "cl_ref": _r(cl_f), "cd": _r(sol.cd), "train_s": None, "infer_ms": None,
+                     "source": "measured", "notes": f"reference: FVM 800x400; {E3_MACH_NOTE}"})
+    return rows
+
+
+def e3_thin_rows():
+    from aeronet import compare, geometry
+
+    af = geometry.naca4("2412")
+    return [{"experiment": "E3", "case": f"NACA2412_a{a}", "method": "thin_airfoil", "mesh": None, "mach": E3_MACH,
+             "alpha_deg": a, "rms_cp": None, "max_cp": None, "cl": _r(compare.thin_airfoil_cl(af, a, E3_MACH)),
+             "cl_ref": _r(metrics.fvm_forces(runs.fvm_2412(a), a)[0]), "cd": None, "train_s": None, "infer_ms": None,
+             "source": "measured", "notes": f"Prandtl-Glauert corrected; reference: FVM 800x400; {E3_MACH_NOTE}"}
+            for a in E3_ALPHAS]
+
+
 # ---------------------------------------------------------------- collect
 def _existing(spec):
     return (spec["dir"] / "log.json").exists() and (spec["dir"] / "snapshots.json").exists()
@@ -326,6 +399,12 @@ def collect(exp, runs_root=runs.RUNS, summary="results/summary.csv", rounds_dir=
             rows.append(row)
             traj.extend(t)
         rows = fvm + [panel_row()] + rows
+    elif exp == "e3":
+        rows += e3_fvm_rows() + e3_panel_rows() + e3_thin_rows()
+        for s in e3_specs(runs_root):
+            take(s, runs.fvm_2412(s["alpha"]), "E3", case=f"NACA2412_a{s['alpha']}",
+                 extra=f"{E3_MESH_NOTE}; {E3_MACH_NOTE}; positivity on: a cold 100x50 start did not collapse in 4 of 4 "
+                       f"seeds in the seed check (off: 1 of 3 collapsed); not an E1 verdict")
     else:
         raise SystemExit(f"unknown experiment {exp!r}")
     for r in rows:
@@ -338,12 +417,12 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
     c = sub.add_parser("commands", help="print the training commands (runs nothing)")
-    c.add_argument("exp", choices=["e1", "e2"])
+    c.add_argument("exp", choices=["e1", "e2", "e3"])
     c.add_argument("--mode", choices=["nopos", "pos"], default="nopos", help="e2: positivity mode of the 200x100 chain")
     c.add_argument("--rounds", type=int, default=None, help="override the number of rounds (e1, e3)")
     c.add_argument("--threads", type=int, default=8)
     k = sub.add_parser("collect", help="finished run folders -> results/summary.csv rows")
-    k.add_argument("exp", choices=["e1", "e2"])
+    k.add_argument("exp", choices=["e1", "e2", "e3"])
     k.add_argument("--summary", default="results/summary.csv")
     a = ap.parse_args(sys.argv[1:] if argv is None else argv)
     if a.cmd == "commands":

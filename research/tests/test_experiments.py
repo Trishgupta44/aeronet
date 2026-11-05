@@ -176,3 +176,59 @@ def test_collect_e2_adds_fvm_panel_and_pinn_rows(tmp_path, ref0012):
     assert "PINN RMS < FVM RMS at 100x50: no" in p100["notes"]  # offset 0.2 is worse than the FVM's 0.046
 
 
+# ---------------------------------------------------------------- E3
+def test_e3_mach_is_the_paper_value():
+    assert ex.E3_MACH == 0.3 and "2401.08705" in ex.E3_MACH_NOTE
+
+
+def test_e3_mesh_is_built_with_both_coefficients(tmp_path):
+    paths = ex.ensure_e3_meshes(tmp_path)
+    assert set(paths) == {"upstream", "winslow2"}
+    for p in paths.values():
+        assert p.read_text().splitlines()[0] == "100\t50"
+        xx, yy = metrics.load_mesh(p)
+        assert xx.shape == (101, 50)
+        assert xx[0, 0] == pytest.approx(0.5) and abs(yy[0, 0]) < 1e-9  # trailing edge on the right
+    a, b = (metrics.load_mesh(p)[0] for p in (paths["upstream"], paths["winslow2"]))
+    assert 1e-4 < np.abs(a - b).max() < 0.05  # the coefficients differ a little
+
+
+def test_e3_polar_rows():
+    fvm = ex.e3_fvm_rows()
+    assert len(fvm) == 11 and [r["alpha_deg"] for r in fvm] == list(range(-10, 11, 2))
+    assert next(r for r in fvm if r["alpha_deg"] == 4)["cl"] == pytest.approx(0.7605, abs=5e-4)
+    assert all(r["method"] == "fvm" and r["mesh"] == "800x400" and r["mach"] == 0.3 for r in fvm)
+    panel = ex.e3_panel_rows()
+    assert len(panel) == 11 and all(r["method"] == "panel" and r["rms_cp"] < 0.06 for r in panel)
+    thin = ex.e3_thin_rows()
+    assert len(thin) == 11 and all(math.isfinite(r["cl"]) and r["method"] == "thin_airfoil" for r in thin)
+
+
+def test_commands_e3_four_angles_on_the_100x50_mesh(tmp_path):
+    lines, notes = ex.plan_commands("e3", tmp_path, mesh_dir=tmp_path / "meshes")
+    assert len(lines) == 4
+    for ln, a in zip(lines, ["-4", "0", "4", "8"]):
+        assert f"--alpha {a} " in ln and "--mach 0.3 " in ln and "--rounds 10 " in ln
+        assert "NACA2412_100_50.x" in ln and "--shape NACA2412" in ln and "--init-from" not in ln
+    assert "naca2412_100x50_am4_m03" in lines[0] and "naca2412_100x50_a8_m03" in lines[3]
+    assert (tmp_path / "meshes" / "NACA2412_100_50.x").exists()  # the mesh is made on demand
+
+
+def test_collect_e3_rows(tmp_path):
+    root = tmp_path / "runs"
+    root.mkdir()
+    refp = {a: metrics.load_fvm(runs.fvm_2412(a)) for a in (-4, 0, 4, 8)}
+    for a in (-4, 0, 4, 8):
+        fake_run(root, runs.run_id("NACA2412", "100x50", a, 0.3), mesh="100x50", shape="NACA2412", alpha=float(a),
+                 mach=0.3, rounds=3, ref=refp[a], offset=0.02)
+    summary = tmp_path / "summary.csv"
+    ex.collect("e3", runs_root=root, summary=summary, rounds_dir=tmp_path)
+    rows = list(csv.DictReader(summary.open()))
+    by = {}
+    for r in rows:
+        by.setdefault(r["method"], []).append(r)
+    assert len(by["fvm"]) == 11 and len(by["pinn"]) == 4 and len(by["panel"]) == 11 and len(by["thin_airfoil"]) == 11
+    assert {r["case"] for r in by["pinn"]} == {"NACA2412_a-4", "NACA2412_a0", "NACA2412_a4", "NACA2412_a8"}
+    p4 = next(r for r in by["pinn"] if r["case"] == "NACA2412_a4")
+    assert "0.5" in p4["notes"] and "quoted" in p4["notes"] and "2401.08705" in p4["notes"]
+    assert float(p4["cl_ref"]) == pytest.approx(0.7605, abs=5e-4)
