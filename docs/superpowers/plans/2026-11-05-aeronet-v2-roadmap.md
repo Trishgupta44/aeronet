@@ -268,7 +268,7 @@ stay under 3 MB; downsample if needed.
 ### 5.4 `results/summary.csv` columns (exact order)
 `experiment,case,method,mesh,mach,alpha_deg,rms_cp,max_cp,cl,cl_ref,cd,train_s,infer_ms,source,notes`
 - `case` is `<Shape>_a<alpha>[_s<seed>]`, e.g. `NACA0012_a4_s1`. This keeps rows unique across seeds and angles.
-- `method` is one of `pinn`, `pinn_nopos`, `pinn_posinit` (E1b only), `pinn_gs` (grid-sequenced),
+- `method` is one of `pinn`, `pinn_nopos`, `pinn_posinit` (E1b only), `pinn_gs` (grid-sequenced), `pinn_gs_nopos` (grid-sequenced, positivity off; the name is `pinn` + `_gs` if `init_from` is set + `_nopos` if positivity is off),
   `pinn_robust`, `pinn_periodic`, `pinn_hardfar` (E6 ablations), `fvm`, `panel`, `neuralfoil`, `thin_airfoil`.
 - `source` is one of `measured`, `quoted`, `fitted`.
 - The reference for `rms_cp` is always the finest FVM file for that shape and condition (800×400), unless

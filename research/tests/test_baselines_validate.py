@@ -79,3 +79,57 @@ def test_validate_case_name_and_method_for_nopos_and_seed():
     assert validate.method_name(cfg) == "pinn_nopos"
     assert validate.case_name({"shape": "NACA2412", "alpha_deg": -2.5, "seed": 0, "positivity": True}) == "NACA2412_a-2.5"
     assert validate.method_name({"positivity": True}) == "pinn"
+
+
+def test_validate_method_name_combinations():
+    assert validate.method_name({"positivity": True}) == "pinn"
+    assert validate.method_name({"positivity": False}) == "pinn_nopos"
+    assert validate.method_name({"positivity": True, "init_from": "naca0012_50x25_a4_m04"}) == "pinn_gs"
+    assert validate.method_name({"positivity": False, "init_from": "x"}) == "pinn_gs_nopos"
+    assert validate.method_name({"positivity": True, "init_from": None}) == "pinn"
+    assert validate.case_name({"shape": "NACA0012", "alpha_deg": 4.0, "seed": 0}) == "NACA0012_a4"
+
+
+def test_validate_writes_rounds_csv(tiny_run, repo, tmp_path):
+    import json
+
+    ref = repo / "NNfoil" / "FVM_Cp" / "NACA0012_800_400_Cp.dat"
+    validate.main([str(tiny_run), "--ref", str(ref), "--experiment", "E2", "--summary", str(tmp_path / "s.csv")])
+    rows = _rows(tiny_run / "rounds.csv")
+    log = json.loads((tiny_run / "log.json").read_text())
+    assert list(rows[0].keys()) == ["round", "cp_rms", "cp_max", "cl", "cd", "loss", "loss_f", "loss_b", "time_s"]
+    assert [r["round"] for r in rows] == ["1", "2"] == [str(k) for k in log["round"]]
+    assert float(rows[1]["cl"]) == pytest.approx(log["cl"][1], rel=1e-5)
+    assert float(rows[1]["time_s"]) == pytest.approx(log["time_s"][1], rel=1e-5)
+    assert all(float(r["cp_rms"]) > 0 and float(r["cp_max"]) >= float(r["cp_rms"]) for r in rows)
+    # the last round's row equals the summary row's metrics (same reference, same metric)
+    (srow,) = _rows(tmp_path / "s.csv")
+    assert float(rows[-1]["cp_rms"]) == pytest.approx(float(srow["rms_cp"]), abs=1e-5)
+    assert float(rows[-1]["cp_max"]) == pytest.approx(float(srow["max_cp"]), abs=1e-5)
+
+
+def test_validate_notes_convention_plain_and_grid_sequenced(tiny_run, repo, tmp_path):
+    import json
+    import shutil
+
+    ref = repo / "NNfoil" / "FVM_Cp" / "NACA0012_800_400_Cp.dat"
+    summary = tmp_path / "s.csv"
+    validate.main([str(tiny_run), "--ref", str(ref), "--experiment", "E2", "--summary", str(summary)])
+    (plain,) = _rows(summary)
+    assert plain["notes"] == "final round; rounds=2; failed_rounds=0"
+    assert plain["method"] == "pinn"
+
+    gs = tmp_path / "gs"
+    shutil.copytree(tiny_run, gs)
+    cfg = json.loads((gs / "config.json").read_text())
+    cfg.update({"init_from": "coarse_run", "positivity": False})
+    (gs / "config.json").write_text(json.dumps(cfg))
+    log = json.loads((gs / "log.json").read_text())
+    log.update({"cl_after_transfer": 0.48315, "failed_rounds": 1})
+    (gs / "log.json").write_text(json.dumps(log))
+    validate.main([str(gs), "--ref", str(ref), "--experiment", "E2b", "--summary", str(summary),
+                   "--ref-label", "FVM 50x25 (same mesh)"])
+    gsrow = [r for r in _rows(summary) if r["experiment"] == "E2b"][0]
+    assert gsrow["method"] == "pinn_gs_nopos"
+    assert gsrow["notes"] == ("ref: FVM 50x25 (same mesh); final round; rounds=2; failed_rounds=1; "
+                              "init_from=coarse_run; cl_after_transfer=0.4832")

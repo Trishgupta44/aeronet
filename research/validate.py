@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import argparse
+import csv
 import json
 import re
 import sys
@@ -42,7 +43,44 @@ def case_name(cfg: dict) -> str:
 
 
 def method_name(cfg: dict) -> str:
-    return "pinn" if cfg.get("positivity", True) else "pinn_nopos"
+    """``pinn`` + ``_gs`` (grid-sequenced: ``init_from`` is set) + ``_nopos`` (positivity off), e.g. ``pinn_gs_nopos``."""
+    return "pinn" + ("_gs" if cfg.get("init_from") else "") + ("" if cfg.get("positivity", True) else "_nopos")
+
+
+ROUND_COLUMNS = ["round", "cp_rms", "cp_max", "cl", "cd", "loss", "loss_f", "loss_b", "time_s"]
+
+
+def rounds_table(cfg: dict, log: dict, snap: dict, ref) -> list[dict]:
+    """One row per logged round: Cp error of that round's wall Cp against ``ref`` (same metric as the summary row).
+
+    ``time_s`` is the cumulative training time at the end of the round, exactly as in ``log.json``.
+    """
+    by_round = {int(r["round"]): r["cp"] for r in snap["rounds"]}
+    rows = []
+    for i, r in enumerate(log["round"]):
+        err = metrics.cp_error(snap["x"], snap["y"], by_round[int(r)], ref)
+        rows.append({"round": int(r), "cp_rms": err["rms"], "cp_max": err["max"], "cl": log["cl"][i],
+                     "cd": log["cd"][i], "loss": log["loss"][i], "loss_f": log["loss_f"][i],
+                     "loss_b": log["loss_b"][i], "time_s": log["time_s"][i]})
+    return rows
+
+
+def write_rounds_csv(path, rows: list[dict]) -> None:
+    with Path(path).open("w", newline="", encoding="utf8") as f:
+        w = csv.DictWriter(f, fieldnames=ROUND_COLUMNS)
+        w.writeheader()
+        for r in rows:
+            w.writerow({k: (f"{v:.6g}" if isinstance(v, float) else v) for k, v in r.items()})
+
+
+def run_notes(cfg: dict, log: dict) -> str:
+    """``final round`` plus the run's bookkeeping: rounds, failed_rounds, init_from, Cl after transfer (grid sequencing)."""
+    parts = ["final round", f"rounds={len(log['round'])}", f"failed_rounds={int(log.get('failed_rounds', 0))}"]
+    if cfg.get("init_from"):
+        parts.append(f"init_from={cfg['init_from']}")
+        if log.get("cl_after_transfer") is not None:
+            parts.append(f"cl_after_transfer={float(log['cl_after_transfer']):.4f}")
+    return "; ".join(parts)
 
 
 def validate(run_dir, ref_path, experiment, summary="results/summary.csv", ref_label=None, notes=""):
@@ -59,6 +97,7 @@ def validate(run_dir, ref_path, experiment, summary="results/summary.csv", ref_l
     ref = metrics.load_fvm(ref_path)
     err = metrics.cp_error(x, y, cp, ref)
     cl_ref, _ = metrics.fvm_forces(ref_path, alpha)
+    write_rounds_csv(run / "rounds.csv", rounds_table(cfg, log, snap, ref))
 
     # figure: Cp vs x/c, inverted axis; panel line only for NACA 4-digit codes
     fig, ax = plt.subplots(figsize=(7, 4.6))
@@ -81,7 +120,8 @@ def validate(run_dir, ref_path, experiment, summary="results/summary.csv", ref_l
     fig.savefig(run / "cp_vs_fvm.png", dpi=150)
     plt.close(fig)
 
-    notes_out = "; ".join(s for s in ([f"ref: {ref_label}"] if ref_label else []) + ([notes] if notes else []))
+    notes_out = "; ".join(s for s in ([f"ref: {ref_label}"] if ref_label else []) + [run_notes(cfg, log)]
+                          + ([notes] if notes else []))
     row = {
         "experiment": experiment, "case": case_name(cfg), "method": method_name(cfg), "mesh": cfg["mesh"],
         "mach": _num(mach), "alpha_deg": _num(alpha),
