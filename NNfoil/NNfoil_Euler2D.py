@@ -22,8 +22,9 @@ def pick_device():
     return torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 class Net(torch.nn.Module):
-    def __init__(self, layer_dim, X, device):
+    def __init__(self, layer_dim, X, device, positivity=True):
         super().__init__()
+        self.positivity = positivity
 
         self.X_mean = X.mean(0, keepdim=True)
         self.X_std = X.std(0, keepdim=True)
@@ -41,15 +42,19 @@ class Net(torch.nn.Module):
             x = self.layers[i](x)
             if i < self.num_layers-2:
                 x = torch.tanh(x)
+        if self.positivity:
+            # output order (u, v, p, rho): keep p and rho strictly positive
+            x = torch.cat([x[:, 0:2], F.softplus(x[:, 2:4]) + 1e-3], dim=1)
         return x
     
 class NNfoil():
     
-    def __init__(self, layers, device, xx, yy, ckpt_path='model_temp.pth'):
+    def __init__(self, layers, device, xx, yy, positivity=True, ckpt_path='model_temp.pth'):
 
         self.layers = layers
         self.device = device
         self.ckpt_path = ckpt_path
+        self.positivity = positivity
         self.wall = {}
         self.far = {}
         self.log = {'losses':[], 'losses_b':[], 'losses_f':[], 'losses_s':[], 'Cl':[], 'time':[]}
@@ -61,7 +66,7 @@ class NNfoil():
         self.Ma = torch.tensor(0.4); self.alpha = torch.tensor(4/180*torch.pi)
         
         self.Preprocess(xx, yy)
-        self.model = Net(self.layers, self.XE, self.device).to(self.device)
+        self.model = Net(self.layers, self.XE, self.device, self.positivity).to(self.device)
 
         #Obtain airfoil by cst (True) or mesh (False) ? if True, use mesh deformation based on the read mesh.
         self.use_cst = False  
@@ -252,7 +257,7 @@ class NNfoil():
             #exceptional handling
             if ((len(self.log['losses'])==0))and((self.loss != self.loss) or (self.loss_f < 1e-15)):
                 print('Failed, Restart')
-                self.model = Net(self.layers, self.XE, self.device).to(self.device)
+                self.model = Net(self.layers, self.XE, self.device, self.positivity).to(self.device)
                 continue
             if (self.loss != self.loss)or(self.loss_f < 1e-15)or((len(self.log['losses'])>0)and(self.loss.item() > 4*self.log['losses'][-1])):
                 print('Failed, Load previous model')
