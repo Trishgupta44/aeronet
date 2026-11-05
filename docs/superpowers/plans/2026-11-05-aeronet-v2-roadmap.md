@@ -88,6 +88,15 @@ results) and a project with solid measured numbers. Deliver everything the exist
    run did far fewer iterations than the paper's 20,000. Candidate remedies (Plan C, E6/C11): a panel-method
    prior that carries the right circulation (idea I2 in the research doc), periodic input, and averaging or
    early stopping on a held-out criterion that does not use the FVM.
+8f. **E1 first evidence (measured, 50×25, one seed each): the softplus positivity fix made training WORSE.**
+   Without it (upstream behaviour, 18 good rounds, 2 failed, 416 s): Cp RMS vs FVM 800×400 stays at
+   0.026–0.033 from round 2 on (best 0.0262), Cl 0.48–0.52, final loss 1.3e-5. With it (8e above): round 1
+   fails, RMS drifts to 0.073, Cl to 0.41, loss stays near 7e-5. The upstream code never produced a negative p
+   or rho in these runs, so there was no failure for the fix to cure, and softplus (+1e-3) slows the early
+   fit. Finding 2 stays a valid *safety* concern but not a benefit on this case. The flag remains, default on
+   in the code. **Use `--no-positivity` for the grid-sequenced and seed-check runs** (it matches the research
+   doc's measurements), and let E1 (Plan C, 2 seeds, 20 rounds) decide the default. Do not claim the fix
+   helps.
 8c. **The FVM Cp files are not stored in contour order.** Integrating Cl directly from them gives nonsense
    (0.355). Sort the points by angle about the centroid first (`metrics.order_contour`).
 9. **The "draw any shape" route works.** A prototype that resamples any closed curve and runs the panel
