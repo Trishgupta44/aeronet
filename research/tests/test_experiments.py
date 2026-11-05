@@ -1,5 +1,6 @@
 import csv
 import json
+import math
 
 import numpy as np
 import pytest
@@ -118,5 +119,60 @@ def test_collect_e1_rows_and_trajectory_csv(tmp_path, ref0012):
     traj = list(csv.DictReader((tmp_path / "e1_rounds.csv").open()))
     assert len(traj) == 6 * 5  # every round of every run is kept, not only the best one
     assert {"run_id", "method", "case", "round", "cp_rms", "cl"} <= set(traj[0])
+
+
+# ---------------------------------------------------------------- E2
+def test_e2_fvm_rows():
+    rows = ex.fvm_mesh_rows()
+    assert len(rows) == 4 and [r["mesh"] for r in rows] == ["50x25", "100x50", "200x100", "400x200"]
+    assert 0.10 <= rows[0]["rms_cp"] <= 0.12 and rows[3]["rms_cp"] < 0.01
+    assert all(r["experiment"] == "E2" and r["method"] == "fvm" and r["case"] == "NACA0012_a4" for r in rows)
+    assert [r["rms_cp"] for r in rows] == sorted((r["rms_cp"] for r in rows), reverse=True)  # error falls with the mesh
+    assert rows[0]["cl_ref"] == pytest.approx(0.5193, abs=5e-4) and rows[0]["source"] == "measured"
+
+
+def test_e2_panel_row():
+    r = ex.panel_row()
+    assert r["method"] == "panel" and r["mesh"].endswith("panels") and r["experiment"] == "E2"
+    assert r["rms_cp"] < 0.02 and r["cl"] == pytest.approx(0.525, abs=0.01)  # about 0.0099 in the baseline rows
+
+
+def test_commands_e2_probe_then_resume_by_the_budget(tmp_path):
+    parent = tmp_path / "naca0012_100x50_a4_m04_gs_nopos"
+    parent.mkdir()
+    (parent / "config.json").write_text("{}")
+    (parent / "model.pt").write_bytes(b"x")
+    lines, notes = ex.plan_commands("e2", tmp_path)  # no 200x100 run yet: a 1-round probe, chained from the 100x50 run
+    assert len(lines) == 1
+    ln = lines[0]
+    assert "NACA0012_200_100.x" in ln and "--rounds 1 " in ln and "--no-positivity" in ln
+    assert "--init-from results/runs/naca0012_100x50_a4_m04_gs_nopos" in ln or str(parent).replace("\\", "/") in ln
+    assert "naca0012_200x100_a4_m04_gs_nopos" in ln and "--resume" not in ln
+
+    probe = fake_run(tmp_path, "naca0012_200x100_a4_m04_gs_nopos", mesh="200x100", positivity=False, rounds=1,
+                     time_per_round=600.0, init_from="x")
+    lines, notes = ex.plan_commands("e2", tmp_path)  # 600 s per round -> min(20, 18) rounds in total, 17 left
+    assert len(lines) == 1 and "--resume" in lines[0] and "--rounds 17" in lines[0]
+
+    (probe / "log.json").write_text(json.dumps({**json.loads((probe / "log.json").read_text()), "time_s": [5000.0]}))
+    lines, notes = ex.plan_commands("e2", tmp_path)  # 5000 s per round -> only 2 fit in 3 h: skipped, with the reason
+    assert lines == [] and any("fewer than 3" in n for n in notes)
+
+
+def test_collect_e2_adds_fvm_panel_and_pinn_rows(tmp_path, ref0012):
+    root = tmp_path / "runs"
+    root.mkdir()
+    fake_run(root, "naca0012_50x25_a4_m04", rounds=5, failed=0, ref=ref0012, offset=0.01)
+    fake_run(root, "naca0012_100x50_a4_m04_gs_nopos", mesh="100x50", positivity=False, rounds=4, init_from="a",
+             ref=ref0012, offset=0.2)
+    summary = tmp_path / "summary.csv"
+    ex.collect("e2", runs_root=root, summary=summary, rounds_dir=tmp_path)
+    rows = list(csv.DictReader(summary.open()))
+    assert len(rows) >= 7 and {r["experiment"] for r in rows} == {"E2"}  # 4 fvm + panel + 2 pinn
+    assert [r["method"] for r in rows].count("fvm") == 4 and [r["method"] for r in rows].count("panel") == 1
+    p50 = next(r for r in rows if r["method"] == "pinn" and r["mesh"] == "50x25")
+    assert "PINN RMS < FVM RMS at 50x25: yes" in p50["notes"]
+    p100 = next(r for r in rows if r["method"] == "pinn_gs_nopos")
+    assert "PINN RMS < FVM RMS at 100x50: no" in p100["notes"]  # offset 0.2 is worse than the FVM's 0.046
 
 

@@ -1,13 +1,14 @@
 """Experiment drivers (Plan C): print the training commands, then turn finished run folders into summary rows.
 
-    research/.venv/Scripts/python research/experiments.py commands e1   # one shell line per run, nothing is run
-    research/.venv/Scripts/python research/experiments.py collect  e1   # finished runs -> results/summary.csv
+    research/.venv/Scripts/python research/experiments.py commands e1|e2   # one shell line per run, nothing is run
+    research/.venv/Scripts/python research/experiments.py collect  e1|e2   # finished runs -> results/summary.csv
 
 ``commands`` only prints (it skips runs that already have the requested number of attempted rounds, and prints a
 ``--resume`` line for a partial run). Run the printed lines one after another (parallel runs spoil the timing numbers),
 then run ``collect``. Every figure is made by ``make_figures.py``, never here.
 
 E1  positivity on/off, NACA 0012 50x25, Ma 0.4, 4 deg, seeds 0-2, 20 rounds (seed 0 = the Plan A runs).
+E2  mesh size vs Cp error against FVM 800x400: FVM, panel and PINN (the 200x100 run is chained from 50x25 -> 100x50).
 """
 
 from __future__ import annotations
@@ -32,9 +33,12 @@ import runs  # noqa: E402
 import validate  # noqa: E402
 
 REF0012 = runs.FVM["NACA0012"]
+MESH_DIR = ROOT / "NNfoil" / "mesh"
+FVM_DIR = ROOT / "NNfoil" / "FVM_Cp"
 MACH, ALPHA = 0.4, 4
 E1_ROUNDS = 20
 BUDGET_S = 3 * 3600  # roadmap rule 4
+FVM_MESHES = [("50x25", "50_25"), ("100x50", "100_50"), ("200x100", "200_100"), ("400x200", "400_200")]
 
 
 def _r(v, nd=6):
@@ -89,6 +93,13 @@ def e1_specs(runs_root=runs.RUNS):
     return out
 
 
+def e2_200_spec(runs_root, mode="nopos", rounds=1):
+    pos = mode == "pos"
+    parent = Path(runs_root) / runs.run_id("NACA0012", "100x50", ALPHA, MACH, pos, grid_seq=True)
+    return _spec(runs_root, shape="NACA0012", mesh_tag="200_100", mesh="200x100", alpha=ALPHA, mach=MACH, positivity=pos,
+                 rounds=rounds, mesh_file="NNfoil/mesh/NACA0012_200_100.x", grid_seq=True, init_from=_rel(parent)), parent
+
+
 def _command_for(spec, threads, notes):
     """The shell line for one run, or None when it is finished (or cannot continue)."""
     d = spec["dir"]
@@ -110,7 +121,7 @@ def _command_for(spec, threads, notes):
     return shell_line(cmd, out)
 
 
-def plan_commands(exp, runs_root=runs.RUNS, threads=8, rounds=None):
+def plan_commands(exp, runs_root=runs.RUNS, mode="nopos", mesh_dir=None, threads=8, rounds=None):
     """``(lines, notes)``: the shell lines still to run for experiment ``exp`` and messages for the person running them."""
     runs_root = Path(runs_root)
     notes: list[str] = []
@@ -118,6 +129,27 @@ def plan_commands(exp, runs_root=runs.RUNS, threads=8, rounds=None):
         specs = e1_specs(runs_root)
         if rounds:
             specs = [{**s, "rounds": rounds} for s in specs]
+    elif exp == "e2":
+        spec, parent = e2_200_spec(runs_root, mode)
+        if not ((parent / "model.pt").exists() and (parent / "config.json").exists()):
+            return [], [f"{_rel(parent)} is missing: the 200x100 run is chained from it (50x25 -> 100x50 -> 200x100)"]
+        d = spec["dir"]
+        if (d / "log.json").exists():
+            run = runs.load_run(d)
+            good = len(run["log"]["round"])
+            if good == 0:
+                return [], [f"{spec['name']}: no finished round yet"]
+            t_round = run["log"]["time_s"][-1] / good
+            total = rounds_for_budget(t_round)
+            if total < 3:
+                return [], [f"{spec['name']}: {t_round:.0f} s per round: fewer than 3 rounds fit in 3 h, skip 200x100 "
+                            f"(say so in the M3 doc)"]
+            spec = {**spec, "rounds": total}
+            notes.append(f"{spec['name']}: {t_round:.0f} s per round -> {total} rounds in total (3 h rule)")
+        else:
+            notes.append(f"{spec['name']}: probe of 1 round; when it is done run `commands e2` again for the rest "
+                         f"(rounds = min(20, floor(3 h / time of round 1)), at least 3, else skip)")
+        specs = [spec]
     else:
         raise SystemExit(f"unknown experiment {exp!r}")
     lines = []
@@ -199,6 +231,39 @@ def _write_traj(path, rows):
             w.writerow({k: (f"{v:.6g}" if isinstance(v, float) else v) for k, v in r.items() if k in TRAJ_COLUMNS})
 
 
+def _fvm_row(experiment, case, mesh, mach, alpha, path, ref_path, notes, ref=None):
+    ref = metrics.load_fvm(ref_path) if ref is None else ref
+    pts = metrics.load_fvm(path)
+    err = metrics.cp_error(pts[:, 0], pts[:, 1], pts[:, 2], ref)
+    cl, cd = metrics.fvm_forces(path, alpha)
+    cl_ref, _ = metrics.fvm_forces(ref_path, alpha)
+    return {"experiment": experiment, "case": case, "method": "fvm", "mesh": mesh, "mach": mach, "alpha_deg": alpha,
+            "rms_cp": _r(err["rms"]), "max_cp": _r(err["max"]), "cl": _r(cl), "cl_ref": _r(cl_ref), "cd": _r(cd),
+            "train_s": None, "infer_ms": None, "source": "measured", "notes": notes}
+
+
+def fvm_mesh_rows():
+    """E2 FVM rows: each coarse FVM file's own Cp points are the 'prediction', the 800x400 file is the reference."""
+    ref = metrics.load_fvm(REF0012)
+    return [_fvm_row("E2", "NACA0012_a4", label, MACH, ALPHA, FVM_DIR / f"NACA0012_{tag}_Cp.dat", REF0012,
+                     "reference: FVM 800x400; coarse FVM points used as the prediction", ref)
+            for label, tag in FVM_MESHES]
+
+
+def panel_row():
+    """E2 panel row: the app's panel solver (Prandtl-Glauert) at the panel centres against FVM 800x400."""
+    from aeronet import panel
+
+    sol = panel.solve("0012", ALPHA, MACH, 70)
+    ref = metrics.load_fvm(REF0012)
+    err = metrics.cp_error(sol.geom.cx, sol.geom.cy, sol.cp, ref)
+    cl_ref, _ = metrics.fvm_forces(REF0012, ALPHA)
+    return {"experiment": "E2", "case": "NACA0012_a4", "method": "panel", "mesh": f"{sol.n} panels", "mach": MACH,
+            "alpha_deg": ALPHA, "rms_cp": _r(err["rms"]), "max_cp": _r(err["max"]), "cl": _r(sol.cl),
+            "cl_ref": _r(cl_ref), "cd": _r(sol.cd), "train_s": None, "infer_ms": None, "source": "measured",
+            "notes": "reference: FVM 800x400; Hess-Smith panel method with Prandtl-Glauert"}
+
+
 # ---------------------------------------------------------------- collect
 def _existing(spec):
     return (spec["dir"] / "log.json").exists() and (spec["dir"] / "snapshots.json").exists()
@@ -229,6 +294,38 @@ def collect(exp, runs_root=runs.RUNS, summary="results/summary.csv", rounds_dir=
         for s in e1_specs(runs_root):
             take(s, REF0012, "E1", case=f"NACA0012_a4_s{s['seed']}",
                  extra="E1: positivity " + ("on" if s["positivity"] else "off"))
+    elif exp == "e2":
+        fvm = fvm_mesh_rows()
+        fvm_rms = {r["mesh"]: r["rms_cp"] for r in fvm}
+        names = [
+            ("50x25", "NACA0012_50_25", runs.run_id("NACA0012", "50x25", ALPHA, MACH, True),
+             "50x25 seed 0, positivity on (the E1 seed-0 run)"),
+            ("50x25", "NACA0012_50_25", runs.run_id("NACA0012", "50x25", ALPHA, MACH, False),
+             "50x25 seed 0, positivity off (the E1 seed-0 run)"),
+            ("100x50", "", runs.run_id("NACA0012", "100x50", ALPHA, MACH, True),
+             "100x50 from scratch (no grid sequencing), seed 0, positivity on"),
+            ("100x50", "", runs.run_id("NACA0012", "100x50", ALPHA, MACH, True, grid_seq=True),
+             "100x50 grid-sequenced from the 50x25 positivity-on run, seed 0"),
+            ("100x50", "", runs.run_id("NACA0012", "100x50", ALPHA, MACH, False, grid_seq=True),
+             "100x50 grid-sequenced from the 50x25 positivity-off run, seed 0"),
+            ("200x100", "", runs.run_id("NACA0012", "200x100", ALPHA, MACH, False, grid_seq=True),
+             "200x100 chained 50x25 -> 100x50 -> 200x100, positivity off, seed 0"),
+            ("200x100", "", runs.run_id("NACA0012", "200x100", ALPHA, MACH, True, grid_seq=True),
+             "200x100 chained 50x25 -> 100x50 -> 200x100, positivity on, seed 0"),
+        ]
+        for mesh, _, name, what in names:
+            spec = {"name": name, "dir": runs_root / name}
+            if not _existing(spec):
+                if mesh != "200x100":
+                    print(f"skip {name}: no finished round", file=sys.stderr)
+                continue
+            row, t = pinn_row(spec["dir"], REF0012, "E2", extra=what)
+            better = row["rms_cp"] < fvm_rms[mesh]
+            row["notes"] += (f"; PINN RMS < FVM RMS at {mesh}: {'yes' if better else 'no'} "
+                             f"({row['rms_cp']:.4f} vs {fvm_rms[mesh]:.4f}, final round, same 800x400 reference)")
+            rows.append(row)
+            traj.extend(t)
+        rows = fvm + [panel_row()] + rows
     else:
         raise SystemExit(f"unknown experiment {exp!r}")
     for r in rows:
@@ -241,15 +338,16 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
     c = sub.add_parser("commands", help="print the training commands (runs nothing)")
-    c.add_argument("exp", choices=["e1"])
-    c.add_argument("--rounds", type=int, default=None, help="override the number of rounds")
+    c.add_argument("exp", choices=["e1", "e2"])
+    c.add_argument("--mode", choices=["nopos", "pos"], default="nopos", help="e2: positivity mode of the 200x100 chain")
+    c.add_argument("--rounds", type=int, default=None, help="override the number of rounds (e1, e3)")
     c.add_argument("--threads", type=int, default=8)
     k = sub.add_parser("collect", help="finished run folders -> results/summary.csv rows")
-    k.add_argument("exp", choices=["e1"])
+    k.add_argument("exp", choices=["e1", "e2"])
     k.add_argument("--summary", default="results/summary.csv")
     a = ap.parse_args(sys.argv[1:] if argv is None else argv)
     if a.cmd == "commands":
-        lines, notes = plan_commands(a.exp, threads=a.threads, rounds=a.rounds)
+        lines, notes = plan_commands(a.exp, mode=a.mode, threads=a.threads, rounds=a.rounds)
         for n in notes:
             print(f"# {n}", file=sys.stderr)
         for ln in lines:
