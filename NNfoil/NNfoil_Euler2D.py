@@ -7,6 +7,7 @@ from torch.optim import lr_scheduler
 import torch.nn.utils.weight_norm as weight_norm
 import time
 import math
+import os
 from util import jacobian_trans, fwd_gradients
 import pickle
 
@@ -266,7 +267,7 @@ class NNfoil():
 if __name__ == '__main__':
     
     t1 = time.time()
-    torch.set_num_threads(1) 
+    torch.set_num_threads(min(8, os.cpu_count() or 1))
     
     layers = [2, 128, 128, 128, 128, 128, 4]
 
