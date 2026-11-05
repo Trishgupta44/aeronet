@@ -1,5 +1,7 @@
 # -*- coding: utf-8 -*-
 import numpy as np
+import matplotlib
+matplotlib.use("Agg")  # headless: no display needed to import
 import matplotlib.pyplot as plt
 import torch
 

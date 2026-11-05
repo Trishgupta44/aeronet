@@ -16,6 +16,9 @@ torch.cuda.manual_seed(init_seed)
 torch.backends.cuda.matmul.allow_tf32 = False
 torch.backends.cudnn.allow_tf32 = False
 
+def pick_device():
+    return torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
 class Net(torch.nn.Module):
     def __init__(self, layer_dim, X, device):
         super().__init__()
@@ -266,7 +269,7 @@ if __name__ == '__main__':
     
     layers = [2, 128, 128, 128, 128, 128, 4]
 
-    device = torch.device("cuda:0" if 1 else "cpu")
+    device = pick_device()
 
     xxyy = np.loadtxt('mesh/NACA0012_200_100.x', skiprows=1)
     # xxyy = np.loadtxt('mesh/NACA2412_200_100.x', skiprows=1)
