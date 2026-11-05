@@ -97,6 +97,13 @@ results) and a project with solid measured numbers. Deliver everything the exist
    in the code. **Use `--no-positivity` for the grid-sequenced and seed-check runs** (it matches the research
    doc's measurements), and let E1 (Plan C, 2 seeds, 20 rounds) decide the default. Do not claim the fix
    helps.
+8g. **100×50 from scratch WITH positivity did not collapse (measured, seed 0, 20 rounds, 578 s on an idle
+   CPU, about 90 s per full round).** Cl 0.512–0.518 from round 2 on (final 0.516, 0.6% from 0.519), Cp RMS vs
+   FVM 800×400 steady at 0.0144–0.0147 from round 4, against 0.046 for the FVM on the same mesh (about 3×
+   better). This conflicts with the research session's collapse (original method, no positivity, seed 0).
+   So the picture is mixed: positivity hurt on 50×25 (8f) but may prevent the 100×50 collapse. One seed per
+   case proves nothing. A12b runs the seed check in both modes (see Plan A). Do not claim either direction
+   until it is done.
 8c. **The FVM Cp files are not stored in contour order.** Integrating Cl directly from them gives nonsense
    (0.355). Sort the points by angle about the centroid first (`metrics.order_contour`).
 9. **The "draw any shape" route works.** A prototype that resamples any closed curve and runs the panel

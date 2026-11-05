@@ -300,6 +300,28 @@ the transfer. This is not in the NNfoil paper. Our own contribution for the repo
 - [ ] Acceptance (run for real in A12): 50x25 -> 100x50, Cl after the transfer (before fine training) near 0.50
       and after 4 fine rounds near 0.5065 (the measured target; one seed, so do not expect the third digit).
 
+### Task A12b: Seed check for grid sequencing and the cold-start collapse (both positivity modes)
+
+**Why:** one seed each is not evidence. The research doc measured a cold-start 100x50 collapse without
+positivity (seed 0), and grid sequencing fixing it. Our own seed-0 run WITH positivity did not collapse
+(roadmap 8g), while positivity hurt on 50x25 (8f). Pass criterion given by the research session: grid
+sequencing gives Cl > 0.49 for all seeds, and the cold start collapses in at least 1 of 3 seeds; otherwise
+soften the "collapse" claim.
+
+- [ ] Write `research/seed_check.sh` (or a Python driver) that runs, one after another and never in parallel,
+      with 8 threads, NACA0012 at Mach 0.4, alpha 4:
+      (a) grid-sequenced: 5 rounds on 50x25, then `--init-from` that run, 4 rounds on 100x50;
+      (b) cold start: 5 rounds on 100x50;
+      for seeds 1, 2, 3, in BOTH modes (`--no-positivity` and default positivity): 12 chains in total. Run ids
+      per roadmap §5.8 (`..._s1`, `..._gs`, `..._nopos`). Logs go to `train.log` in each run folder.
+- [ ] After each run: `validate.py` (experiment `S1`) so rows land in `results/summary.csv`.
+- [ ] Write `results/seed_check.csv` with one row per (mode, method, seed): Cl after the transfer (grid
+      sequencing only), final Cl, final Cp RMS vs FVM 800x400, round count, failed rounds, seconds. Then a
+      plain-language verdict line per mode: does grid sequencing give Cl > 0.49 for all 3 seeds? does the
+      cold start collapse (final |Cl| < 0.1) in at least 1 of 3?
+- [ ] Fill in the "Seed check" line in `docs/nnfoil_improvements.md` (section I1) with the measured numbers.
+- [ ] Commit: `results: seed check for grid sequencing and the cold-start collapse`.
+
 ### Task A12: Real training runs, then the Milestone 1 pack
 
 - [ ] Start in the background (roadmap rule 3), logging to `train.log`:
