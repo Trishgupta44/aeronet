@@ -69,6 +69,13 @@ results) and a project with solid measured numbers. Deliver everything the exist
 8b. **Positivity slows early training (measured, 50×25).** With softplus on p and rho, round 1 hit
    "Failed, Restart" and Cl went 0.307 → 0.478 over rounds 2–3 (RMS 0.193 → 0.037). Without it, Cl was 0.516
    after round 1. E1 (Plan C) must use ≥ 10 rounds and 2 seeds before drawing any conclusion.
+8d. **Plain NNfoil collapses on 100×50, and grid sequencing fixes it (separate research session, RAN, one
+   seed).** From scratch on 100×50, every variant tried (original, float64, line search) fell into a trivial
+   solution (PDE loss exactly 0, Cl about 0). Training on 50×25 and moving the weights to 100×50 reached
+   **Cl 0.5065 (2.4% error) and Cp relative-L1 0.027 in 302 s total**, against 7.5% Cl error for the FVM on
+   the same mesh. It is not in the NNfoil paper. Full details and further ideas: `docs/nnfoil_improvements.md`.
+   Plan A task A12a implements it; Plan C uses it for the 100×50 and 200×100 results (C2) and adds ablations
+   (C11).
 8c. **The FVM Cp files are not stored in contour order.** Integrating Cl directly from them gives nonsense
    (0.355). Sort the points by angle about the centroid first (`metrics.order_contour`).
 9. **The "draw any shape" route works.** A prototype that resamples any closed curve and runs the panel
@@ -233,7 +240,8 @@ stay under 3 MB; downsample if needed.
 ### 5.4 `results/summary.csv` columns (exact order)
 `experiment,case,method,mesh,mach,alpha_deg,rms_cp,max_cp,cl,cl_ref,cd,train_s,infer_ms,source,notes`
 - `case` is `<Shape>_a<alpha>[_s<seed>]`, e.g. `NACA0012_a4_s1`. This keeps rows unique across seeds and angles.
-- `method` is one of `pinn`, `pinn_nopos`, `pinn_posinit` (E1b only), `fvm`, `panel`, `neuralfoil`, `thin_airfoil`.
+- `method` is one of `pinn`, `pinn_nopos`, `pinn_posinit` (E1b only), `pinn_gs` (grid-sequenced),
+  `pinn_robust`, `pinn_periodic`, `pinn_hardfar` (E6 ablations), `fvm`, `panel`, `neuralfoil`, `thin_airfoil`.
 - `source` is one of `measured`, `quoted`, `fitted`.
 - The reference for `rms_cp` is always the finest FVM file for that shape and condition (800×400), unless
   `notes` says otherwise. Empty cells stay empty, never 0.

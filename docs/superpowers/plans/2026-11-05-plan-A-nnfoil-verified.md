@@ -271,13 +271,44 @@ The loss weights residuals by J², so the effect on training is small.
       RMS 0.108 ± 0.002. `validate.py` on the tiny run from A10's test writes a figure and a row.
 - [ ] Commit: `feat(research): validate.py and FVM/panel baselines`.
 
+### Task A12a: Grid sequencing in `run_case.py` (found by the improvements research; needed for 100x50)
+
+**Why:** a separate research session measured that plain NNfoil on the 100x50 mesh collapses to the trivial
+solution (PDE loss exactly 0, Cl about 0) in every variant it tried. **Grid sequencing** fixed it: train on
+50x25, move the weights to 100x50, continue. Measured there (one seed, `docs/nnfoil_improvements.md` §I1 and
+Task 3b): Cl **0.5065** (2.4% error) and Cp relative-L1 0.027 after 4 fine rounds, with Cl 0.504 right after
+the transfer. This is not in the NNfoil paper. Our own contribution for the report: label it so.
+
+- [ ] Add `--init-from <run_dir>` to `NNfoil/run_case.py`. Read the coarse run's `config.json` (mesh size) and
+      `model.pt`. Build the fine model, then `load_state_dict` the coarse weights.
+- [ ] Rescale the input normalisation so the same *relative* grid position gives the same network input:
+      `X_mean_fine = X_mean_coarse * s`, `X_std_fine = X_std_coarse * s`, with
+      `s = [(M_f - 1) / (M_c - 1), (N_f - 1) / (N_c - 1)]` (M = xi rows including the closing row, N = eta
+      columns). `X_mean` and `X_std` are plain attributes on `Net`, not buffers (finding N15 in the research
+      doc), so set them explicitly after loading. Also check that `model.pt` of a run can be reloaded by
+      `--resume` and `--init-from` alone: if the coarse run's mean/std are needed, recompute them from the
+      coarse mesh (they are `XE.mean(0)` and `XE.std(0)`), so nothing extra needs to be stored.
+- [ ] Skip the "first round -> re-initialise" branch of upstream `train()` for a warm-started model (it keys on
+      `len(log['losses']) == 0`, which would throw the warm start away). Add the minimal change in
+      `NNfoil_Euler2D.py` (a constructor flag or setting `nn.warm_started = True`), as its own commit.
+- [ ] Record `"init_from": "<coarse run id>"` in `config.json`, and a `grid_sequencing` marker in the run id
+      (`..._gs`) so the summary row is distinguishable.
+- [ ] Tests (tiny nets, 1 thread): (1) the transfer keeps the network output at the same relative grid points:
+      build a tiny 50x25 model, transfer to 100x50, and compare the output at ((xi, eta) = (25, 12)) vs
+      ((50, 24)): equal to 1e-5; (2) `--init-from` run writes a folder with `init_from` in `config.json`.
+- [ ] Commit: `feat(nnfoil): grid sequencing (--init-from) with rescaled input normalisation`.
+- [ ] Acceptance (run for real in A12): 50x25 -> 100x50, Cl after the transfer (before fine training) near 0.50
+      and after 4 fine rounds near 0.5065 (the measured target; one seed, so do not expect the third digit).
+
 ### Task A12: Real training runs, then the Milestone 1 pack
 
 - [ ] Start in the background (roadmap rule 3), logging to `train.log`:
       1. `naca0012_50x25_a4_m04`: 20 rounds. Measured about 72 s per round, so about 25 min.
-      2. `naca0012_100x50_a4_m04`: 20 rounds. **Measure** round 1 first; the estimate is about 5 min per
-         round. Apply the budget rule (≤ 3 h).
+      2. `naca0012_100x50_a4_m04` (plain, from scratch). **Expected to collapse** (Cl about 0, per the
+         research doc). Keep it as the baseline evidence and report it honestly. 20 rounds at about 100 s.
       3. `naca0012_50x25_a4_m04_nopos` with `--no-positivity` (needed for E1 later, and cheap).
+      4. `naca0012_100x50_a4_m04_gs`: `--init-from results/runs/naca0012_50x25_a4_m04` (task A12a), 4-10
+         fine rounds. This is the PINN 100x50 number for the headline table.
       Run them one after another, not in parallel (parallel runs ruin the timing numbers).
 - [ ] While they run, start Plan B, or write the M1 doc skeleton.
 - [ ] When each run finishes: `validate.py` against `FVM_Cp/NACA0012_800_400_Cp.dat` (experiment `E2`).
@@ -289,8 +320,8 @@ The loss weights residuals by J², so the effect on training is small.
       2. The findings table: #, file:line, problem, fix, commit hash, evidence (link the test or CSV).
          Findings 1–8 come from 7DP §2; 9 is the training cost; 10 is the Jacobian seam.
       3. CPU cost: s per round for 50×25 and 100×50, threads, CPU name.
-      4. **The headline table: Cl and Cp RMS vs FVM 800×400 for FVM 50×25, PINN 50×25, FVM 100×50 and
-         PINN 100×50, plus panel.** One sentence: does the PINN on a sparse mesh beat the FVM on the same
+      4. **The headline table: Cl and Cp RMS vs FVM 800×400 for FVM 50×25, PINN 50×25, FVM 100×50, PINN 100×50
+         (plain, collapsed) and PINN 100×50 with grid sequencing, plus panel.** One sentence: does the PINN on a sparse mesh beat the FVM on the same
          mesh? (Measured early evidence: PINN 50×25 Cl 0.514 vs FVM 50×25 0.426, against a reference of 0.519.)
       5. The flow-condition findings (roadmap §1a items 2–3).
       6. Next steps (Milestones 2 and 3).

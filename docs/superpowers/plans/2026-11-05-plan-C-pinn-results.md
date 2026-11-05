@@ -151,7 +151,9 @@ runs, `collect e1` adds 4 rows with `experiment=E1`.
   rms/max = `cp_error(load_fvm(coarse), ref=load_fvm(800))` (use the coarse points as the "prediction");
   cl from `fvm_forces`. Expected RMS: 0.1081, 0.0460, 0.0186, 0.0059.
 - PINN rows (method `pinn`): 50×25 (reuse the E1 seed-0 run with positivity on, or off if E1 showed it is
-  better; state which in `notes`), 100×50 (A12 run), and 200×100 (new, `NNfoil/mesh/NACA0012_200_100.x`).
+  better; state which in `notes`), 100×50 (**use the grid-sequenced run `..._gs` from A12a; the plain
+  from-scratch 100×50 run collapses, see `docs/nnfoil_improvements.md` N28**), and 200×100 (new,
+  `NNfoil/mesh/NACA0012_200_100.x`, chain 50×25 -> 100×50 -> 200×100 with `--init-from`).
   For 200×100, first run **1 round**, measure its time, then pick `rounds = min(20, floor(3 h / t_round))`.
   If that is fewer than 3, skip it and write the reason in the M3 doc. Record the rounds in `notes`.
 - Panel row (method `panel`, mesh `140 panels`): `cp_error` of the app's panel solution
@@ -541,3 +543,37 @@ screenshot `docs/milestones/img/m3-train-your-shape.png`.
   figures C9.
 - [ ] Every `summary.csv` row has `source`. No number appears in the UI or docs without a source.
 - [ ] `pytest research/tests`, the backend pytest and `npm test` all pass. `npm run build` succeeds.
+
+---
+
+### Task C11: NNfoil accuracy and robustness ablations (Tier S; "our own contribution" for the report)
+
+**Source:** `docs/nnfoil_improvements.md` (a separate research session; every finding is labelled RAN, READ or
+EST there, and only RAN items are measured). Read its §0 Tasks 3, 3b and 4 and §3 first.
+
+**Goal:** 2–3 flag-controlled changes to NNfoil, each measured on 50×25 (the case where the baseline works)
+and reported as an ablation table. Keep every flag **default off**, so upstream behaviour is unchanged.
+
+**Files:** modify `NNfoil/NNfoil_Euler2D.py` (flags as constructor args, one commit each), `NNfoil/run_case.py`
+(CLI flags), `research/experiments.py` (add `e6`), tests in `research/tests/test_nnfoil_options.py`.
+
+**Options (do them in this order; stop when the budget is gone):**
+1. **Robust loop (finding N1, N28):** after `optimizer.step`, recompute the loss and check the parameters are
+   finite; on a collapse (PDE loss < 1e-12) rebuild the net with `seed + k` (at most 3 retries) and log each
+   restart. Flag `--robust`. Test: a stub whose loss is NaN is rejected, not saved.
+2. **`--periodic` (N6):** network input `[cos(2πξ/(M-1)), sin(2πξ/(M-1)), z(η)]`, `layers[0] = 3`, and drop the
+   seam interface loss.
+3. **`--hardfar` (N10):** `out = q_inf + (1 - η/η_max) * net(x)`, drop the far-field loss. Run 2 and 3
+   **separately** first. The research doc measured them together on 100×50: no collapse, but Cl 0.271.
+4. Stretch: `--weight absJ` (N5, the lopsided J² weighting), `register_buffer` for `X_mean`/`X_std` (N15).
+
+**Experiment E6:** for each flag, 50×25, 10 rounds, 2 seeds (0 and 1), against the baseline from E1.
+Summary rows: method `pinn_<flag>` (extend the §5.4 method list in the roadmap: add the new names), columns
+`rms_cp`, `cl`, `train_s`. Keep a flag in the demo's default only if it keeps Cl within 5% of the baseline
+**and** lowers Cp RMS. Otherwise report it as a negative result (that still counts).
+
+**Acceptance:** `collect e6` adds at least 6 rows; the M3 doc states for every flag: kept or rejected, with the
+numbers.
+
+**Commit (one per flag):** `feat(nnfoil): --robust training loop`, `feat(nnfoil): --periodic input`, ...
+
