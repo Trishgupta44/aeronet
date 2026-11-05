@@ -5,6 +5,13 @@
 
 Run folder: config.json, log.json, snapshots.json, field.npz, model.pt. A killed run keeps everything up to the
 last finished round; ``--resume`` continues from it (cumulative training time and round numbers continue).
+
+Grid sequencing (AeroNet's own addition, not in the NNfoil paper): ``--init-from <coarse run dir>`` starts the
+network from a run on a coarser mesh of the same airfoil, with the input normalisation rescaled so that the same
+relative grid position gives the same network input (``transfer_from_coarse``)::
+
+    python NNfoil/run_case.py --mesh NNfoil/mesh/NACA0012_100_50.x --shape NACA0012 --mach 0.4 --alpha 4 \
+        --rounds 4 --threads 8 --init-from results/runs/naca0012_50x25_a4_m04
 """
 
 from __future__ import annotations
@@ -38,9 +45,18 @@ def _mach_token(mach: float) -> str:
     return f"{int(round(float(mach) * 100)):03d}"
 
 
-def make_run_id(shape: str, mesh: str, alpha: float, mach: float, positivity: bool = True, seed: int | None = None) -> str:
-    """``<shape lowercase>_<NxM>_a<alpha>_m<mach>[_nopos][_s<seed>]`` (roadmap 5.8). Seed 0 (the default) has no suffix."""
+def make_run_id(shape: str, mesh: str, alpha: float, mach: float, positivity: bool = True, seed: int | None = None,
+                grid_seq: bool = False) -> str:
+    """``<shape lowercase>_<NxM>_a<alpha>_m<mach>[_gs][_nopos][_s<seed>]`` (roadmap 5.8).
+
+    The marker order is the order in which a run is described: the method (``_gs`` = grid-sequenced, started from a
+    coarser run) comes first, then the ablation flag (``_nopos``), then the repeat index (``_s<seed>``), so a seed
+    suffix is always last and ``..._gs_s1`` / ``..._gs_nopos_s1`` sort next to their ``..._gs`` base run.
+    Seed 0 (the default) has no suffix.
+    """
     rid = f"{shape.lower()}_{mesh}_a{_alpha_token(alpha)}_m{_mach_token(mach)}"
+    if grid_seq:
+        rid += "_gs"
     if not positivity:
         rid += "_nopos"
     if seed:
@@ -81,6 +97,52 @@ def load_mesh(path):
     return np.r_[xx, xx[0:1]], np.r_[yy, yy[0:1]]
 
 
+# ---------------------------------------------------------------- grid sequencing
+def _mesh_dims(label: str) -> tuple[int, int]:
+    """``"50x25"`` -> (N_xi, N_eta) = (50, 25). The network sees M = N_xi + 1 xi rows (closing row) and N = N_eta columns."""
+    n_xi, n_eta = (int(v) for v in label.split("x"))
+    return n_xi, n_eta
+
+
+def _index_grid_stats(label: str, like: torch.Tensor):
+    """``XE.mean(0)`` and ``XE.std(0)`` of a mesh, exactly as ``Net.__init__`` computes them (shape (1, 2))."""
+    n_xi, n_eta = _mesh_dims(label)
+    xxi, eeta = torch.meshgrid(torch.arange(n_xi + 1), torch.arange(n_eta), indexing="ij")
+    xe = torch.cat([xxi.reshape(-1, 1), eeta.reshape(-1, 1)], dim=1).to(like.device).to(like.dtype)
+    return xe.mean(0, keepdim=True), xe.std(0, keepdim=True)
+
+
+def apply_grid_seq_norm(nn, coarse_label: str) -> None:
+    """Set ``nn.model.X_mean/X_std`` to the coarse mesh's values times ``s = [(M_f-1)/(M_c-1), (N_f-1)/(N_c-1)]``.
+
+    ``X_mean`` / ``X_std`` are plain tensors on ``Net`` (not buffers, so not in ``state_dict``): ``Net.__init__``
+    derives them from the fine mesh, which would shift every input of a transferred network. The network input is the
+    grid index (xi, eta), so with this scaling a relative grid position gives the same normalised input on both
+    meshes. The coarse statistics depend only on the coarse index grid, so the mesh label is enough.
+    """
+    n_xi_c, n_eta_c = _mesh_dims(coarse_label)
+    s = torch.tensor([(nn.M - 1) / n_xi_c, (nn.N - 1) / (n_eta_c - 1)]).to(nn.XE.device).to(nn.XE.dtype)
+    mean_c, std_c = _index_grid_stats(coarse_label, nn.XE)
+    nn.model.X_mean = mean_c * s
+    nn.model.X_std = std_c * s
+
+
+def transfer_from_coarse(nn, coarse_dir) -> dict:
+    """Warm-start ``nn`` (fine mesh) from the run folder ``coarse_dir`` and rescale the input normalisation.
+
+    Returns the coarse run's ``config.json``. Weights are loaded through ``NNfoil.set_warm_start`` so that a failed
+    first round reloads them instead of re-initialising the network.
+    """
+    coarse_dir = Path(coarse_dir)
+    cfg_c = json.loads((coarse_dir / "config.json").read_text(encoding="utf8"))
+    if cfg_c["layers"] != list(nn.layers):
+        raise SystemExit(f"--init-from: the coarse run has layers {cfg_c['layers']}, this run {list(nn.layers)}")
+    state = torch.load(coarse_dir / "model.pt", map_location=nn.device, weights_only=True)
+    nn.set_warm_start(state)
+    apply_grid_seq_norm(nn, cfg_c["mesh"])
+    return cfg_c
+
+
 # ---------------------------------------------------------------- run
 def _field(nn) -> dict:
     with torch.no_grad():
@@ -119,6 +181,7 @@ def parse_args(argv):
     ap.add_argument("--lbfgs-iter", type=int, default=1000, help="L-BFGS max_iter per round")
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--resume", action="store_true", help="continue the run in --out")
+    ap.add_argument("--init-from", help="grid sequencing: coarse run folder (config.json + model.pt) to start from")
     return ap.parse_args(argv)
 
 
@@ -132,7 +195,11 @@ def main(argv=None) -> int:
 
     xx, yy = load_mesh(a.mesh)
     mesh_label = f"{xx.shape[0] - 1}x{xx.shape[1]}"
-    run_id = make_run_id(shape, mesh_label, a.alpha, a.mach, positivity, a.seed)
+    if a.init_from and a.resume:
+        raise SystemExit("--init-from applies to a new run; a resumed grid-sequenced run remembers its origin")
+    if a.init_from and not (Path(a.init_from) / "config.json").exists():
+        raise SystemExit(f"--init-from: {a.init_from} has no config.json")
+    run_id = make_run_id(shape, mesh_label, a.alpha, a.mach, positivity, a.seed, grid_seq=bool(a.init_from))
     out = Path(a.out) if a.out else Path("results") / "runs" / run_id
     out.mkdir(parents=True, exist_ok=True)
 
@@ -150,7 +217,9 @@ def main(argv=None) -> int:
         cfg["rounds"] = cfg["rounds"] + a.rounds
         cfg["threads"] = a.threads
         cfg["lbfgs_max_iter"] = a.lbfgs_iter
+        init_mesh = cfg.get("init_from_mesh")  # a grid-sequenced run: its weights expect the scaled normalisation
     else:
+        init_mesh = None
         if log_path.exists():
             raise SystemExit(f"{out} already holds a run; pass --resume to continue it or choose another --out")
         cfg = {
@@ -163,6 +232,11 @@ def main(argv=None) -> int:
         log = {"round": [], "time_s": [], "loss": [], "loss_f": [], "loss_b": [], "cl": [], "cd": [],
                "failed_rounds": 0}
         snaps = None
+    coarse_cfg = None
+    if a.init_from:
+        coarse_cfg = json.loads((Path(a.init_from) / "config.json").read_text(encoding="utf8"))
+        cfg["init_from"] = coarse_cfg.get("run_id", Path(a.init_from).name)
+        cfg["init_from_mesh"] = coarse_cfg["mesh"]  # lets --resume rebuild the scaled normalisation without the coarse run
     _atomic_json(cfg_path, cfg)
 
     done = len(log["round"])
@@ -176,7 +250,14 @@ def main(argv=None) -> int:
     if snaps is None:
         snaps = {"x": (nn.wall["X_f"][:, 0] + 0.5).cpu().tolist(), "y": nn.wall["X_f"][:, 1].cpu().tolist(),
                  "rounds": []}
+    if coarse_cfg is not None:
+        transfer_from_coarse(nn, a.init_from)
+        log["cl_after_transfer"] = nn.evaluate_wall()[0]  # the coarse answer on the fine grid, before fine training
+        print(f"transferred {cfg['init_from']} ({coarse_cfg['mesh']}) -> {mesh_label}: "
+              f"Cl after transfer = {log['cl_after_transfer']:.4f}", flush=True)
     if a.resume:
+        if init_mesh:
+            apply_grid_seq_norm(nn, init_mesh)
         nn._load_ckpt()
         nn.log["losses"] = list(log["loss"])
         nn.log["losses_f"] = list(log["loss_f"])

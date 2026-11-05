@@ -160,3 +160,88 @@ def test_cold_start_failed_first_round_still_reinitialises(mesh_50x25, monkeypat
     _force_nan_loss(nn, monkeypatch)
     nn.train(1)
     assert nn.model is not model_before  # upstream behaviour unchanged
+
+
+# ---------------------------------------------------------------- A12a: grid sequencing (--init-from)
+def _mesh_file(repo, name):
+    return repo / "NNfoil" / "mesh" / name
+
+
+def _fine_nn(repo):
+    xx, yy = run_case.load_mesh(_mesh_file(repo, "NACA0012_100_50.x"))
+    torch.set_num_threads(1)
+    return nf.NNfoil([2, 8, 8, 4], torch.device("cpu"), xx, yy, lbfgs_max_iter=5)
+
+
+def _coarse_nn(tiny_run, repo):
+    xx, yy = run_case.load_mesh(_mesh_file(repo, "NACA0012_50_25.x"))
+    nn = nf.NNfoil([2, 8, 8, 4], torch.device("cpu"), xx, yy, lbfgs_max_iter=5)
+    nn.model.load_state_dict(torch.load(tiny_run / "model.pt", weights_only=True))
+    return nn
+
+
+def test_make_run_id_grid_sequenced_marker_order():
+    assert run_case.make_run_id("NACA0012", "100x50", 4, 0.4, grid_seq=True) == "naca0012_100x50_a4_m04_gs"
+    assert (run_case.make_run_id("NACA0012", "100x50", 4, 0.4, positivity=False, seed=2, grid_seq=True)
+            == "naca0012_100x50_a4_m04_gs_nopos_s2")
+
+
+def test_transfer_keeps_output_at_the_same_relative_grid_point(tiny_run, repo):
+    coarse = _coarse_nn(tiny_run, repo)
+    fine = _fine_nn(repo)
+    cfg = run_case.transfer_from_coarse(fine, tiny_run)
+    assert cfg["mesh"] == "50x25"
+    s = torch.tensor([100 / 50, 49 / 24])  # (N_xi_f/N_xi_c, (N_eta_f-1)/(N_eta_c-1)), M includes the closing row
+    assert torch.allclose(fine.model.X_mean, coarse.model.X_mean * s, rtol=1e-6)
+    assert torch.allclose(fine.model.X_std, coarse.model.X_std * s, rtol=1e-6)
+    # the same relative position (xi/(M-1), eta/(N-1)): xi 25 -> 50 (middle of the airfoil), eta 0 and last
+    pts = [((25.0, 0.0), (50.0, 0.0)), ((25.0, 24.0), (50.0, 49.0)), ((0.0, 24.0), (0.0, 49.0)),
+           ((50.0, 0.0), (100.0, 0.0))]
+    with torch.no_grad():
+        for pc, pf in pts:
+            uc = coarse.model(torch.tensor([pc]))
+            uf = fine.model(torch.tensor([pf]))
+            assert torch.allclose(uc, uf, atol=1e-5), (pc, pf, uc, uf)
+
+
+def test_transfer_rejects_a_different_network(tiny_run, repo):
+    xx, yy = run_case.load_mesh(_mesh_file(repo, "NACA0012_100_50.x"))
+    fine = nf.NNfoil([2, 16, 4], torch.device("cpu"), xx, yy)
+    with pytest.raises(SystemExit):
+        run_case.transfer_from_coarse(fine, tiny_run)
+
+
+def test_init_from_run_folder(tiny_run, repo, tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)  # the default --out is results/runs/<run id>
+    rc = run_case.main(["--mesh", str(_mesh_file(repo, "NACA0012_100_50.x")), "--shape", "NACA0012",
+                        "--layers", "2,8,8,4", "--lbfgs-iter", "5", "--rounds", "1", "--threads", "1",
+                        "--init-from", str(tiny_run)])
+    assert rc == 0
+    out = tmp_path / "results" / "runs" / "naca0012_100x50_a4_m04_gs"
+    assert out.is_dir() and "_gs" in out.name
+    cfg = json.loads((out / "config.json").read_text())
+    assert cfg["init_from"] == "tiny" or cfg["init_from"] == tiny_run.name
+    assert cfg["run_id"] == out.name and cfg["mesh"] == "100x50"
+    log = json.loads((out / "log.json").read_text())
+    assert isinstance(log["cl_after_transfer"], float) and np.isfinite(log["cl_after_transfer"])
+    assert log["round"] == [1] and all(len(log[k]) == 1 for k in ["loss", "cl", "cd"])
+    assert all((out / f).exists() for f in FILES)
+    # the number is exactly what the coarse network gives on the fine grid: no training happened before it
+    fine = _fine_nn(repo)
+    run_case.transfer_from_coarse(fine, tiny_run)
+    cl, _ = fine.evaluate_wall()
+    assert log["cl_after_transfer"] == pytest.approx(cl, abs=1e-6)
+
+
+def test_resume_of_a_grid_sequenced_run_restores_the_scaled_normalisation(tiny_run, repo, tmp_path, monkeypatch):
+    out = tmp_path / "gs"
+    base = ["--mesh", str(_mesh_file(repo, "NACA0012_100_50.x")), "--shape", "NACA0012", "--layers", "2,8,8,4",
+            "--lbfgs-iter", "5", "--threads", "1", "--out", str(out)]
+    assert run_case.main(base + ["--rounds", "1", "--init-from", str(tiny_run)]) == 0
+    seen = []
+    real = run_case.apply_grid_seq_norm
+    monkeypatch.setattr(run_case, "apply_grid_seq_norm", lambda nn, label: (seen.append(label), real(nn, label))[1])
+    assert run_case.main(base + ["--rounds", "1", "--resume"]) == 0
+    assert seen == ["50x25"]
+    log = json.loads((out / "log.json").read_text())
+    assert log["round"] == [1, 2] and "cl_after_transfer" in log
