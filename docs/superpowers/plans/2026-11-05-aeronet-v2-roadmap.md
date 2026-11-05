@@ -33,7 +33,11 @@ results) and a project with solid measured numbers. Deliver everything the exist
    metric (`cp_error`; report this one). It is 0.0113 against 400×200 and 0.0193 against 200×100. Against the
    coarse 100×50 and 50×25 FVM files it is 0.025 and 0.056. That gap is the FVM's own coarse-mesh error,
    which is exactly the paper's point: on sparse meshes FVM is inaccurate.
-2. **The NACA 2412 sweep files (`FVM_Cp_NACA2412/*AoA*`) do NOT fit Mach 0.4.** At 4° the RMS is 0.036 at
+2. **The NACA 2412 sweep files (`FVM_Cp_NACA2412/*AoA*`) are at Mach 0.3 (quoted from the NNfoil paper §3.4,
+   read from the PDF on 2026-11-06; the paper's parametric NACA 2412 case is Ma = 0.3, alpha in [-10, 10]).**
+   Our panel-method fit preferred about 0.25 (RMS 0.0121 against 0.0142 at 0.3), which is within the panel
+   method's error. Use **0.3 (quoted)** for every NACA 2412 run and row. The original finding, kept for the
+   record: the files do NOT fit Mach 0.4. At 4° the RMS is 0.036 at
    Mach 0.4, but 0.0108 at **Mach ≈ 0.25** (best fit, scanned in steps of 0.05). The same holds at 0°.
    Their Mach number must be confirmed from the NNfoil paper (arXiv 2401.08705). Until then, label it
    "fitted Mach 0.25".

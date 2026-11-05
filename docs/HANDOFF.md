@@ -14,6 +14,14 @@
   C6 (export), C11 (ablation flags), C9 (figures + `docs/milestones/M3-pinn-results.md`).
 - Held until Plan B is merged: C7, C8, C10 (they need Plan B's backend and `FlowCanvas`).
 
+## Running right now (started 2026-11-06 01:14)
+- `results/run_plan_c.sh` runs E1 -> E2 (probe, resume) -> E3 sequentially, logging to
+  `results/runs/planc_progress.log` ("ALL DONE" when finished; about 3-5 h). A hidden PowerShell holds the laptop
+  awake until then. When done: `research/.venv/Scripts/python research/experiments.py collect e1` (then e2, e3),
+  commit `results/summary.csv`, `results/e*_rounds.csv` and the small run files, then do C4, C5, C9.
+- Budget note: the weekly Claude limit is nearly used up (extra usage is disabled), so priority order is
+  C4, C5, C9 (numbers and the M3 brief), then Plan B core (B1-B3, B7-B8), then C6-C8.
+
 ## Not started
 - **Plan B (demo v2: draw any shape, animated flow, cars)**, `docs/superpowers/plans/2026-11-05-plan-B-demo-v2.md`.
   It is independent of Plan A and can be run in its own session. Plan D (report, slides) comes last.
