@@ -1,0 +1,19 @@
+experiment,case,method,mesh,mach,alpha_deg,rms_cp,max_cp,cl,cl_ref,cd,train_s,infer_ms,source,notes
+B0,NACA0012_a4,fvm,50x25,0.4,4,0.108087,0.722104,0.426457,0.519329,0.020285,,,measured,reference: FVM 800x400
+B0,NACA0012_a4,fvm,100x50,0.4,4,0.045985,0.260987,0.480267,0.519329,0.011556,,,measured,reference: FVM 800x400
+B0,NACA0012_a4,fvm,200x100,0.4,4,0.018648,0.113102,0.504576,0.519329,0.006902,,,measured,reference: FVM 800x400
+B0,NACA0012_a4,fvm,400x200,0.4,4,0.005927,0.037047,0.514641,0.519329,0.004074,,,measured,reference: FVM 800x400
+B0,NACA0012_a4,panel,,0.4,4,0.009906,0.070634,0.526233,0.519329,0.000169,,,measured,reference: FVM 800x400; 200 panels
+B0,NACA2412_a-10,panel,,0.25,-10,0.030071,0.297655,-0.978795,-0.955781,0.000881,,,fitted,"Mach fitted from Cp, confirm from paper"
+B0,NACA2412_a-8,panel,,0.25,-8,0.021876,0.193663,-0.731329,-0.720362,0.000732,,,fitted,"Mach fitted from Cp, confirm from paper"
+B0,NACA2412_a-6,panel,,0.25,-6,0.017764,0.142917,-0.482937,-0.476561,0.000577,,,fitted,"Mach fitted from Cp, confirm from paper"
+B0,NACA2412_a-4,panel,,0.25,-4,0.01455,0.097749,-0.233923,-0.230087,0.000419,,,fitted,"Mach fitted from Cp, confirm from paper"
+B0,NACA2412_a-2,panel,,0.25,-2,0.012185,0.066938,0.01541,0.018781,0.000262,,,fitted,"Mach fitted from Cp, confirm from paper"
+B0,NACA2412_a0,panel,,0.25,0,0.011,0.047203,0.264758,0.265125,0.000108,,,fitted,"Mach fitted from Cp, confirm from paper"
+B0,NACA2412_a2,panel,,0.25,2,0.010929,0.047954,0.513817,0.513004,-3.7e-05,,,fitted,"Mach fitted from Cp, confirm from paper"
+B0,NACA2412_a4,panel,,0.25,4,0.012059,0.053155,0.762283,0.760497,-0.00017,,,fitted,"Mach fitted from Cp, confirm from paper"
+B0,NACA2412_a6,panel,,0.25,6,0.014558,0.069071,1.00985,1.007093,-0.000289,,,fitted,"Mach fitted from Cp, confirm from paper"
+B0,NACA2412_a8,panel,,0.25,8,0.018397,0.086545,1.256216,1.251564,-0.000389,,,fitted,"Mach fitted from Cp, confirm from paper"
+B0,NACA2412_a10,panel,,0.25,10,0.023097,0.137548,1.501078,1.492884,-0.000467,,,fitted,"Mach fitted from Cp, confirm from paper"
+B0,NACA0012_a4,thin_airfoil,,0.4,4,,,0.478605,0.519329,,,,measured,Prandtl-Glauert corrected; reference: FVM 800x400
+B0,NACA2412_a4,thin_airfoil,,0.25,4,,,0.688301,0.760497,,,,measured,"Mach fitted from Cp, confirm from paper; reference: FVM 800x400"
