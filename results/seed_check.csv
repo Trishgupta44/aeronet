@@ -1,0 +1,16 @@
+mode,method,seed,run_id,cl_after_transfer,final_cl,cp_rms,rounds,failed_rounds,seconds,collapsed,complete
+nopos,gs,0,naca0012_100x50_a4_m04_gs_nopos,0.483152,0.511683,0.014790,4,0,143.9,no,yes
+nopos,gs,1,naca0012_100x50_a4_m04_gs_nopos_s1,0.374898,0.503512,0.016207,4,0,676.4,no,yes
+nopos,gs,2,naca0012_100x50_a4_m04_gs_nopos_s2,0.501011,0.507487,0.015392,4,0,108.3,no,yes
+nopos,gs,3,naca0012_100x50_a4_m04_gs_nopos_s3,0.502248,0.509043,0.014705,4,0,1660.4,no,yes
+nopos,cold,1,naca0012_100x50_a4_m04_nopos_s1,,0.510789,0.014827,4,1,290.7,no,yes
+nopos,cold,2,naca0012_100x50_a4_m04_nopos_s2,,0.517726,0.015250,4,1,295.4,no,yes
+nopos,cold,3,naca0012_100x50_a4_m04_nopos_s3,,,,0,5,,yes,yes
+pos,gs,0,naca0012_100x50_a4_m04_gs,0.412064,0.502356,0.016216,4,0,121.1,no,yes
+pos,gs,1,naca0012_100x50_a4_m04_gs_s1,0.490156,0.516083,0.014511,4,0,296.6,no,yes
+pos,gs,2,naca0012_100x50_a4_m04_gs_s2,0.514166,0.513287,0.014553,4,0,672.7,no,yes
+pos,gs,3,naca0012_100x50_a4_m04_gs_s3,0.511054,0.512797,0.015128,4,0,144.6,no,yes
+pos,cold,0,naca0012_100x50_a4_m04,,0.516286,0.014451,20,0,577.6,no,yes
+pos,cold,1,naca0012_100x50_a4_m04_s1,,0.506552,0.015379,5,0,324.6,no,yes
+pos,cold,2,naca0012_100x50_a4_m04_s2,,0.500695,0.016508,5,0,359.0,no,yes
+pos,cold,3,naca0012_100x50_a4_m04_s3,,0.509828,0.014512,5,0,310.9,no,yes

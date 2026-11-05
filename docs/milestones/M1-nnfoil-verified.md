@@ -1,6 +1,6 @@
 # Milestone 1: NNfoil verified and running on a laptop CPU
 
-Status: **draft, seed check pending** (see "SEED CHECK: pending" below). Branch `plan-a-nnfoil-verified`. Every number below comes from
+Status: **complete** (seed check done, 2026-11-06). Branch `plan-a-nnfoil-verified`. Every number below comes from
 `results/summary.csv` (S), a run's `rounds.csv` / `log.json` (R), `results/finding3_mesh_smoothing.csv` and
 `results/finding10_jacobian.csv` (C), `NNfoil/AERONET_CHANGES.md` or `git log`. Labels: **measured** = produced by
 code in this repo; **quoted** = copied from another document, not re-run here; **fitted** = tuned to data.
@@ -100,12 +100,26 @@ input normalisation, continue 4 rounds. Cl right after the transfer: 0.4832 (pos
 rounds 0.5117 and 0.5024. The research session's figures were 0.504 and 0.5065 (quoted). Both land at Cp RMS 0.015-0.016
 in 121-144 s of fine training, the same accuracy as the plain 100x50 run.
 
-### SEED CHECK: pending
+### Seed check (A12b, measured; `results/seed_check.csv`)
 
-Task A12b runs seeds 1-3 in both positivity modes (grid-sequenced and cold start on 100x50) and
-`research/seed_check.py` writes `results/seed_check.csv`. Pass criteria: grid sequencing gives Cl > 0.49 for all 3
-seeds, and the cold start collapses (|Cl| < 0.1) in at least 1 of 3. **No result is claimed here until it is
-finished.** If the cold start does not collapse, the "collapse" statement (research doc, quoted) is softened.
+Seeds 1-3, both positivity modes, NACA 0012 at Mach 0.4 and 4 deg, 100x50. Grid-sequenced = 5 rounds on 50x25, weights
+moved, 4 rounds on 100x50. Cold start = 5 rounds on 100x50 from scratch. Final Cl against 0.5193 and Cp RMS against FVM 800x400.
+
+| Mode | Method | Seed 1 | Seed 2 | Seed 3 | Seed 0 (earlier) |
+|---|---|---|---|---|---|
+| positivity off | grid-sequenced | Cl 0.504 (RMS 0.0162) | 0.507 (0.0154) | 0.509 (0.0147) | 0.512 (0.0148) |
+| positivity off | cold start | 0.511 (0.0148), 1 failed round | 0.518 (0.0153), 1 failed round | **collapsed: all 5 rounds failed** | not run |
+| positivity on | grid-sequenced | 0.516 (0.0145) | 0.513 (0.0146) | 0.513 (0.0151) | 0.502 (0.0162) |
+| positivity on | cold start | 0.507 (0.0154) | 0.501 (0.0165) | 0.510 (0.0145) | 0.516 (0.0145), 20 rounds |
+
+Pass criteria (set by the research session): **(1) grid sequencing gives Cl > 0.49 for all 3 seeds: yes, in both modes
+(0.504-0.516).** **(2) the cold start collapses in at least 1 of 3 seeds: yes without positivity (1 of 3), no with it
+(0 of 3).** So the cold-start collapse is real but unreliable: the original method collapsed once in three seeds, and our
+positivity change never collapsed in four seeds (0-3). That is the first evidence in positivity's favour. It is still only
+3-4 seeds on one mesh, and the same change hurt on 50x25 (4c), so E1 must settle the default.
+
+Grid sequencing is reliable, but it is not shown to be faster here: its coarse stage costs a 50x25 run. Run times of this
+check are wall-clock and some runs were stalled by the machine (one first round took 1536 s), so they are not quoted.
 
 ## 5. Flow-condition findings (the bundled data is not all Mach 0.4 and 4 deg)
 
@@ -122,7 +136,7 @@ finished.** If the cold start does not collapse, the "collapse" statement (resea
 
 ## 6. Next steps
 
-- **Seed check (A12b)** and then fill the section above; settle the positivity default with E1 (2 seeds, 20 rounds).
+- Settle the positivity default with E1 (2 seeds, 20 rounds): it hurt on 50x25 and protected 100x50 in the seed check.
 - **Milestone 2 (Plan B):** demo v2 with drawn shapes, a live velocity field and a polar.
 - **Milestone 3 (Plan C):** PINN results in the app, experiments E1-E5, the 200x100 mesh, the cylinder, a Kutta/circulation
   remedy for the drift in 4(b) (for example a panel-method prior), and the corrected mesh generator (finding 3).
