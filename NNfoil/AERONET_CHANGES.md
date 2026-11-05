@@ -8,3 +8,4 @@ Line numbers refer to the upstream files in that commit. `git log NNfoil/` shows
 | 1 | NNfoil_Euler2D.py:269 | `pick_device()` returns CPU when CUDA is unavailable (also `matplotlib.use("Agg")` in util.py so imports work headless) | <hash-1> |
 | 5 | NNfoil_Euler2D.py:110 | `np.math.factorial` (removed in NumPy 2) replaced by `math.factorial` | <hash-5> |
 | 4 | NNfoil_Euler2D.py:265 | `torch.set_num_threads(1)` changed to `min(8, os.cpu_count() or 1)` (`__main__` setting, no test) | <hash-4> |
+| 6 | NNfoil_Euler2D.py:247,250 | Whole-module `torch.save`/`torch.load` (fails with `weights_only=True` default since PyTorch 2.6) replaced by `_save_ckpt`/`_load_ckpt` using `state_dict`, with a per-run `ckpt_path` argument | <hash-6> |

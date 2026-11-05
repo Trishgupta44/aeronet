@@ -45,10 +45,11 @@ class Net(torch.nn.Module):
     
 class NNfoil():
     
-    def __init__(self, layers, device, xx, yy):
+    def __init__(self, layers, device, xx, yy, ckpt_path='model_temp.pth'):
 
         self.layers = layers
         self.device = device
+        self.ckpt_path = ckpt_path
         self.wall = {}
         self.far = {}
         self.log = {'losses':[], 'losses_b':[], 'losses_f':[], 'losses_s':[], 'Cl':[], 'time':[]}
@@ -221,6 +222,12 @@ class NNfoil():
 
         return loss, loss_b, loss_f
     
+    def _save_ckpt(self):
+        torch.save(self.model.state_dict(), self.ckpt_path)
+
+    def _load_ckpt(self):
+        self.model.load_state_dict(torch.load(self.ckpt_path, map_location=self.device, weights_only=True))
+
     def train(self, epoch):
 
         if len(self.log['time']) == 0:
@@ -249,10 +256,10 @@ class NNfoil():
                 continue
             if (self.loss != self.loss)or(self.loss_f < 1e-15)or((len(self.log['losses'])>0)and(self.loss.item() > 4*self.log['losses'][-1])):
                 print('Failed, Load previous model')
-                self.model = torch.load('model_temp.pth')
+                self._load_ckpt()
                 continue
             
-            torch.save(self.model, 'model_temp.pth')
+            self._save_ckpt()
                 
             t2 = time.time()
             self.log['losses'].append(self.loss.item())
