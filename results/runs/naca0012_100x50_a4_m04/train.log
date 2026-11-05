@@ -1,0 +1,44 @@
+C:\Users\trish\Downloads\Aero-Net\research\.venv\Lib\site-packages\torch\functional.py:504: UserWarning: torch.meshgrid: in an upcoming release, it will be required to pass the indexing argument. (Triggered internally at C:\actions-runner\_work\pytorch\pytorch\aten\src\ATen\native\TensorShape.cpp:4209.)
+  return _VF.meshgrid(tensors, **kwargs)  # type: ignore[attr-defined]
+C:\Users\trish\Downloads\Aero-Net\research\.venv\Lib\site-packages\torch\nn\utils\weight_norm.py:145: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+0|1 loss=0.0011884910054504871 PDE loss=0.0005443572299554944
+round 1: loss=0.001188 Cl=0.3719 Cd=0.0059 t=90.2s
+0|1 loss=0.00019598004291765392 PDE loss=6.251784361666068e-05
+round 2: loss=0.000196 Cl=0.5082 Cd=0.0009 t=181.6s
+0|1 loss=0.00011158791312482208 PDE loss=4.0094386349665e-05
+round 3: loss=0.0001116 Cl=0.5158 Cd=0.0006 t=269.6s
+0|1 loss=9.990049875341356e-05 PDE loss=3.189763447153382e-05
+round 4: loss=9.99e-05 Cl=0.5144 Cd=0.0006 t=297.0s
+0|1 loss=9.123396739596501e-05 PDE loss=2.654893796716351e-05
+round 5: loss=9.123e-05 Cl=0.5169 Cd=0.0006 t=324.7s
+0|1 loss=8.767077815718949e-05 PDE loss=2.7348385629011318e-05
+round 6: loss=8.767e-05 Cl=0.5177 Cd=0.0007 t=345.5s
+0|1 loss=9.211334690917283e-05 PDE loss=3.168266994180158e-05
+round 7: loss=9.211e-05 Cl=0.5172 Cd=0.0004 t=347.1s
+0|1 loss=9.249997674487531e-05 PDE loss=2.805284020723775e-05
+round 8: loss=9.25e-05 Cl=0.5143 Cd=0.0005 t=361.1s
+0|1 loss=8.812602754915133e-05 PDE loss=2.5830762751866132e-05
+round 9: loss=8.813e-05 Cl=0.5156 Cd=0.0006 t=385.8s
+0|1 loss=8.398106729146093e-05 PDE loss=2.494058571755886e-05
+round 10: loss=8.398e-05 Cl=0.5132 Cd=0.0008 t=413.0s
+0|1 loss=7.870620174799114e-05 PDE loss=2.441645301587414e-05
+round 11: loss=7.871e-05 Cl=0.5124 Cd=0.0004 t=449.7s
+0|1 loss=6.235609907889739e-05 PDE loss=1.6339467038051225e-05
+round 12: loss=6.236e-05 Cl=0.5106 Cd=0.0005 t=474.8s
+0|1 loss=7.603009726153687e-05 PDE loss=2.310874879185576e-05
+round 13: loss=7.603e-05 Cl=0.5163 Cd=0.0007 t=494.8s
+0|1 loss=7.711828220635653e-05 PDE loss=2.4196706362999976e-05
+round 14: loss=7.712e-05 Cl=0.5163 Cd=0.0007 t=495.5s
+0|1 loss=7.519280188716948e-05 PDE loss=2.2283642465481535e-05
+round 15: loss=7.519e-05 Cl=0.5163 Cd=0.0007 t=497.3s
+0|1 loss=6.526934885187075e-05 PDE loss=1.6254956790362485e-05
+round 16: loss=6.527e-05 Cl=0.5146 Cd=0.0003 t=513.3s
+0|1 loss=7.193253986770287e-05 PDE loss=2.3104488718672656e-05
+round 17: loss=7.193e-05 Cl=0.5125 Cd=0.0004 t=525.4s
+0|1 loss=6.52852249913849e-05 PDE loss=1.9054376025451347e-05
+round 18: loss=6.529e-05 Cl=0.5135 Cd=0.0005 t=543.5s
+0|1 loss=7.121979433577508e-05 PDE loss=2.11936749110464e-05
+round 19: loss=7.122e-05 Cl=0.5143 Cd=0.0006 t=563.7s
+0|1 loss=7.109415309969336e-05 PDE loss=2.3435224647982977e-05
+round 20: loss=7.109e-05 Cl=0.5163 Cd=0.0007 t=577.6s

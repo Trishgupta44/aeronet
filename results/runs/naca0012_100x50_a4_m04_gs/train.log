@@ -1,0 +1,13 @@
+C:\Users\trish\Downloads\Aero-Net\research\.venv\Lib\site-packages\torch\functional.py:504: UserWarning: torch.meshgrid: in an upcoming release, it will be required to pass the indexing argument. (Triggered internally at C:\actions-runner\_work\pytorch\pytorch\aten\src\ATen\native\TensorShape.cpp:4209.)
+  return _VF.meshgrid(tensors, **kwargs)  # type: ignore[attr-defined]
+C:\Users\trish\Downloads\Aero-Net\research\.venv\Lib\site-packages\torch\nn\utils\weight_norm.py:145: FutureWarning: `torch.nn.utils.weight_norm` is deprecated in favor of `torch.nn.utils.parametrizations.weight_norm`.
+  WeightNorm.apply(module, name, dim)
+transferred naca0012_50x25_a4_m04 (50x25) -> 100x50: Cl after transfer = 0.4121
+0|1 loss=9.749077435117215e-05 PDE loss=3.508273948682472e-05
+round 1: loss=9.749e-05 Cl=0.4939 Cd=0.0010 t=39.4s
+0|1 loss=8.534595690434799e-05 PDE loss=3.159725747536868e-05
+round 2: loss=8.535e-05 Cl=0.4974 Cd=0.0008 t=55.4s
+0|1 loss=6.7754095653072e-05 PDE loss=2.9533075576182455e-05
+round 3: loss=6.775e-05 Cl=0.4992 Cd=0.0006 t=100.6s
+0|1 loss=7.221096893772483e-05 PDE loss=3.0240760679589584e-05
+round 4: loss=7.221e-05 Cl=0.5024 Cd=0.0007 t=121.1s

@@ -17,3 +17,13 @@ B0,NACA2412_a8,panel,,0.25,8,0.018397,0.086545,1.256216,1.251564,-0.000389,,,fit
 B0,NACA2412_a10,panel,,0.25,10,0.023097,0.137548,1.501078,1.492884,-0.000467,,,fitted,"Mach fitted from Cp, confirm from paper"
 B0,NACA0012_a4,thin_airfoil,,0.4,4,,,0.478605,0.519329,,,,measured,Prandtl-Glauert corrected; reference: FVM 800x400
 B0,NACA2412_a4,thin_airfoil,,0.25,4,,,0.688301,0.760497,,,,measured,"Mach fitted from Cp, confirm from paper; reference: FVM 800x400"
+E2b,NACA0012_a4,pinn,50x25,0.4,4,0.093487,0.301876,0.411877,0.426457,-0.001711,334.2,,measured,ref: FVM 50x25 (same mesh); final round; rounds=19; failed_rounds=1
+E2b,NACA0012_a4,pinn_nopos,50x25,0.4,4,0.107354,0.422306,0.482923,0.426457,0.002517,416.2,,measured,ref: FVM 50x25 (same mesh); final round; rounds=18; failed_rounds=2
+E2b,NACA0012_a4,pinn,100x50,0.4,4,0.061969,0.290372,0.516286,0.480267,0.000655,577.6,,measured,ref: FVM 100x50 (same mesh); final round; rounds=20; failed_rounds=0
+E2b,NACA0012_a4,pinn_gs_nopos,100x50,0.4,4,0.060733,0.277857,0.511683,0.480267,0.001058,143.9,,measured,ref: FVM 100x50 (same mesh); final round; rounds=4; failed_rounds=0; init_from=naca0012_50x25_a4_m04_nopos; cl_after_transfer=0.4832
+E2b,NACA0012_a4,pinn_gs,100x50,0.4,4,0.056833,0.255329,0.502356,0.480267,0.000711,121.1,,measured,ref: FVM 100x50 (same mesh); final round; rounds=4; failed_rounds=0; init_from=naca0012_50x25_a4_m04; cl_after_transfer=0.4121
+E2,NACA0012_a4,pinn,50x25,0.4,4,0.073405,0.212661,0.411877,0.519329,-0.001711,334.2,,measured,ref: FVM 800x400; final round; rounds=19; failed_rounds=1
+E2,NACA0012_a4,pinn_nopos,50x25,0.4,4,0.032526,0.145694,0.482923,0.519329,0.002517,416.2,,measured,ref: FVM 800x400; final round; rounds=18; failed_rounds=2
+E2,NACA0012_a4,pinn,100x50,0.4,4,0.014451,0.082595,0.516286,0.519329,0.000655,577.6,,measured,ref: FVM 800x400; final round; rounds=20; failed_rounds=0
+E2,NACA0012_a4,pinn_gs_nopos,100x50,0.4,4,0.01479,0.085712,0.511683,0.519329,0.001058,143.9,,measured,ref: FVM 800x400; final round; rounds=4; failed_rounds=0; init_from=naca0012_50x25_a4_m04_nopos; cl_after_transfer=0.4832
+E2,NACA0012_a4,pinn_gs,100x50,0.4,4,0.016216,0.082621,0.502356,0.519329,0.000711,121.1,,measured,ref: FVM 800x400; final round; rounds=4; failed_rounds=0; init_from=naca0012_50x25_a4_m04; cl_after_transfer=0.4121
