@@ -119,3 +119,44 @@ def test_cli_smoke_subprocess(tmp_path, repo):
                        capture_output=True, text=True, timeout=300)
     assert r.returncode == 0, r.stderr[-2000:]
     assert all((out / f).exists() for f in FILES)
+
+
+# ---------------------------------------------------------------- A12a: warm start guard
+def _tiny_nn(mesh, seed=0):
+    torch.set_num_threads(1)
+    torch.manual_seed(seed)
+    xx, yy = mesh
+    return nf.NNfoil([2, 8, 8, 4], torch.device("cpu"), xx, yy, lbfgs_max_iter=2)
+
+
+def _force_nan_loss(nn, monkeypatch):
+    def nan_loss():
+        bad = sum(p.sum() for p in nn.model.parameters()) * float("nan")
+        return bad, bad, bad
+
+    monkeypatch.setattr(nn, "Loss", nan_loss)
+
+
+def test_warm_started_failed_first_round_keeps_the_transferred_weights(mesh_50x25, monkeypatch, tmp_path):
+    nn = _tiny_nn(mesh_50x25)
+    assert nn.warm_started is False
+    other = _tiny_nn(mesh_50x25, seed=5)  # the "transferred" weights come from a different network
+    nn.ckpt_path = str(tmp_path / "ckpt.pt")
+    nn.set_warm_start(other.model.state_dict())
+    assert nn.warm_started is True
+    model_before = nn.model
+    _force_nan_loss(nn, monkeypatch)
+    nn.train(1)
+    assert nn.model is model_before  # not re-initialised
+    assert len(nn.log["losses"]) == 0  # still a failed round
+    for k, v in other.model.state_dict().items():
+        assert torch.equal(nn.model.state_dict()[k], v), k
+
+
+def test_cold_start_failed_first_round_still_reinitialises(mesh_50x25, monkeypatch, tmp_path):
+    nn = _tiny_nn(mesh_50x25)
+    nn.ckpt_path = str(tmp_path / "ckpt.pt")
+    model_before = nn.model
+    _force_nan_loss(nn, monkeypatch)
+    nn.train(1)
+    assert nn.model is not model_before  # upstream behaviour unchanged

@@ -57,6 +57,8 @@ class NNfoil():
         self.ckpt_path = ckpt_path
         self.lbfgs_max_iter = int(lbfgs_max_iter)  # L-BFGS iterations per train() round (upstream hard-coded 1000)
         self.positivity = positivity
+        self.warm_started = False  # set by set_warm_start(): a failed first round then keeps the transferred weights
+        self._warm_state = None
         self.periodic_jacobian = periodic_jacobian  # opt-in: periodic xi differencing at the trailing-edge seam (finding 10)
         self.wall = {}
         self.far = {}
@@ -249,6 +251,12 @@ class NNfoil():
     def _load_ckpt(self):
         self.model.load_state_dict(torch.load(self.ckpt_path, map_location=self.device, weights_only=True))
 
+    def set_warm_start(self, state_dict):
+        """Load transferred weights (e.g. from a coarser grid) and remember them for a failed first round."""
+        self.model.load_state_dict(state_dict)
+        self._warm_state = {k: v.detach().clone() for k, v in self.model.state_dict().items()}
+        self.warm_started = True
+
     def train(self, epoch):
 
         if len(self.log['time']) == 0:
@@ -272,6 +280,11 @@ class NNfoil():
             
             #exceptional handling
             if ((len(self.log['losses'])==0))and((self.loss != self.loss) or (self.loss_f < 1e-15)):
+                if self.warm_started:
+                    # A12a: a warm start (grid sequencing) must not be thrown away: reload the transferred weights
+                    print('Failed, Reload warm start')
+                    self.model.load_state_dict(self._warm_state)
+                    continue
                 print('Failed, Restart')
                 self.model = Net(self.layers, self.XE, self.device, self.positivity).to(self.device)
                 continue
