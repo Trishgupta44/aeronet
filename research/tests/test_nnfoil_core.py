@@ -51,3 +51,24 @@ def test_positivity_keeps_p_rho_above_floor(mesh_50x25):
 def test_positivity_off_is_raw(mesh_50x25):
     out = _scaled_net_outputs(mesh_50x25, positivity=False)
     assert out[:, 2].min().item() < 0
+
+
+def test_flow_condition_arguments(mesh_50x25):
+    import math
+
+    xx, yy = mesh_50x25
+    nn = nf.NNfoil([2, 16, 16, 4], torch.device("cpu"), xx, yy, Ma=0.3, alpha_deg=2.0)
+    assert abs(nn.far["u"].item() - math.cos(math.radians(2.0))) < 1e-6
+    assert abs(nn.far["v"].item() - math.sin(math.radians(2.0))) < 1e-6
+    assert abs(nn.far["p"].item() - 1 / (1.4 * 0.09)) < 1e-4
+
+
+def test_evaluate_wall_returns_finite_floats(mesh_50x25):
+    import math
+
+    xx, yy = mesh_50x25
+    nn = nf.NNfoil([2, 16, 16, 4], torch.device("cpu"), xx, yy)
+    cl, cd = nn.evaluate_wall()
+    assert isinstance(cl, float) and isinstance(cd, float)
+    assert math.isfinite(cl) and math.isfinite(cd)
+    assert nn.wall["Cp_f"].shape == (xx.shape[0] - 1, 1)

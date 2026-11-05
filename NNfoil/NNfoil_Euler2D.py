@@ -49,7 +49,7 @@ class Net(torch.nn.Module):
     
 class NNfoil():
     
-    def __init__(self, layers, device, xx, yy, positivity=True, ckpt_path='model_temp.pth'):
+    def __init__(self, layers, device, xx, yy, Ma=0.4, alpha_deg=4.0, positivity=True, ckpt_path='model_temp.pth'):
 
         self.layers = layers
         self.device = device
@@ -62,8 +62,8 @@ class NNfoil():
         # CST hyper-parameters
         self.degree = 5; self.n_1 = 0.5; self.n_2 = 1; 
         
-        # flow condition
-        self.Ma = torch.tensor(0.4); self.alpha = torch.tensor(4/180*torch.pi)
+        # flow condition (one condition per model; the network input stays (xi, eta))
+        self.Ma = torch.tensor(float(Ma)); self.alpha = torch.tensor(float(alpha_deg)/180*torch.pi)
         
         self.Preprocess(xx, yy)
         self.model = Net(self.layers, self.XE, self.device, self.positivity).to(self.device)
@@ -220,6 +220,16 @@ class NNfoil():
         self.Cl = - (torch.cos(self.alpha)*Force[:,1:2] - torch.sin(self.alpha)*Force[:,0:1]).sum()
         self.Cd = - (torch.sin(self.alpha)*Force[:,1:2] + torch.cos(self.alpha)*Force[:,0:1]).sum()
         
+    def evaluate_wall(self):
+        """Return (Cl, Cd) as floats from the current model, without touching the training graph."""
+        with torch.no_grad():
+            p_f = self.model(self.wall['XE_f'])[:, 2:3]
+            self.wall['Cp_f'] = (p_f - 1/(1.4*self.Ma**2)) / 0.5
+            p = self.model(self.wall['XE'])[:, 2:3]
+            self.wall['Cp'] = (p - 1/(1.4*self.Ma**2)) / 0.5
+            self.Calculate_Force()
+        return float(self.Cl), float(self.Cd)
+
     def Loss(self):
         loss_f = self.Msef()*2e4
         loss_b = self.Mseb()
@@ -298,6 +308,8 @@ if __name__ == '__main__':
     nn.train(20)
     t2 = time.time()
     print('wall time:', t2-t1)
+    cl, cd = nn.evaluate_wall()
+    print(f'Cl = {cl:.4f}, Cd = {cd:.4f}')
     # %%plot
     from matplotlib import rcParams,colors
     my_font1 = {"family":"Times New Roman", "size":22, "style":"italic"}
