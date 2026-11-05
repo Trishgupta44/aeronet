@@ -79,7 +79,7 @@ results) and a project with solid measured numbers. Deliver everything the exist
 8e. **Accuracy peaks early, then drifts while the loss keeps falling (measured, 50×25, positivity on, 19
    good rounds, 5.5 min total on an idle CPU).** Cp RMS vs FVM 800×400 by round: 0.193, 0.037, 0.030, 0.0275,
    0.030, 0.029, 0.034, then 0.068, 0.056 ... **0.073 at round 19**. Cl: 0.307, 0.478, 0.497, 0.499, 0.493,
-   0.501, 0.482, then 0.41–0.44. The residual loss fell the whole time (1.1e-4 at round 3 against 7e-5 at
+   0.501, 0.482, then 0.41–0.44. The residual loss fell the whole time (1.3e-4 at round 3 against 7e-5 at
    round 19). The Euler residual does not pin the circulation (nothing enforces a Kutta condition, finding
    N22 in `docs/nnfoil_improvements.md`), so lower loss does not mean a better Cl. The final round is still
    better in Cp than the FVM on the same mesh (0.073 against 0.108), but its Cl (0.412) is no better than the
@@ -90,7 +90,7 @@ results) and a project with solid measured numbers. Deliver everything the exist
    early stopping on a held-out criterion that does not use the FVM.
 8f. **E1 first evidence (measured, 50×25, one seed each): the softplus positivity fix made training WORSE.**
    Without it (upstream behaviour, 18 good rounds, 2 failed, 416 s): Cp RMS vs FVM 800×400 stays at
-   0.026–0.033 from round 2 on (best 0.0262), Cl 0.48–0.52, final loss 1.3e-5. With it (8e above): round 1
+   0.026–0.037 from round 2 on (best 0.0262), Cl 0.48–0.52, final loss 1.3e-5. With it (8e above): round 1
    fails, RMS drifts to 0.073, Cl to 0.41, loss stays near 7e-5. The upstream code never produced a negative p
    or rho in these runs, so there was no failure for the fix to cure, and softplus (+1e-3) slows the early
    fit. Finding 2 stays a valid *safety* concern but not a benefit on this case. The flag remains, default on
@@ -98,7 +98,7 @@ results) and a project with solid measured numbers. Deliver everything the exist
    doc's measurements), and let E1 (Plan C, 2 seeds, 20 rounds) decide the default. Do not claim the fix
    helps.
 8g. **100×50 from scratch WITH positivity did not collapse (measured, seed 0, 20 rounds, 578 s on an idle
-   CPU, about 90 s per full round).** Cl 0.512–0.518 from round 2 on (final 0.516, 0.6% from 0.519), Cp RMS vs
+   CPU, about 90 s per full round).** Cl 0.508 at round 2 and 0.511–0.518 afterwards (final 0.516, 0.6% from 0.519), Cp RMS vs
    FVM 800×400 steady at 0.0144–0.0147 from round 4, against 0.046 for the FVM on the same mesh (about 3×
    better). This conflicts with the research session's collapse (original method, no positivity, seed 0).
    So the picture is mixed: positivity hurt on 50×25 (8f) but may prevent the 100×50 collapse. One seed per
