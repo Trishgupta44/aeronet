@@ -1,0 +1,10 @@
+mesh,n_xi,n_eta,majority_sign,upstream_wrong_cells,upstream_wrong_xi_rows,upstream_wrong_eta_cols,periodic_wrong_cells,periodic_wrong_xi_rows,upstream_max_abs_jac_inv,periodic_max_abs_jac_inv,j2_share_inner_quarter_eta,j2_share_outer_quarter_eta,source
+NACA0012_50_25,51,25,-1,2,0 50,0,0,,9.279e+04,2927,3.643e-06,0.9831,measured
+NACA0012_100_50,101,50,-1,2,0 100,0,0,,1.528e+06,1.173e+04,4.949e-06,0.9804,measured
+NACA0012_200_100,201,100,-1,2,0 200,0,0,,2.471e+07,4.696e+04,6.508e-06,0.9824,measured
+NACA2412_200_100,201,100,-1,1,0,0,0,,1.354e+07,1.346e+05,6.556e-06,0.9823,measured
+Airfoil1_200_100,201,100,-1,2,0 200,0,0,,1.173e+07,4.449e+04,6.388e-06,0.9826,measured
+Airfoil2_200_100,201,100,-1,1,0,0,0,,3.678e+07,8.989e+04,6.422e-06,0.9825,measured
+Airfoil3_200_100,201,100,-1,1,0,0,0,,2.788e+07,9.535e+04,6.327e-06,0.9826,measured
+Airfoil4_200_100,201,100,-1,1,0,0,0,,1.163e+07,1.677e+05,6.23e-06,0.9827,measured
+Airfoil5_200_100,201,100,-1,1,0,0,0,,3.624e+07,1.106e+05,6.2e-06,0.9828,measured

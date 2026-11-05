@@ -8,7 +8,7 @@ import torch.nn.utils.weight_norm as weight_norm
 import time
 import math
 import os
-from util import jacobian_trans, fwd_gradients
+from util import jacobian_trans, jacobian_trans_periodic, fwd_gradients
 import pickle
 
 init_seed = 0
@@ -49,12 +49,14 @@ class Net(torch.nn.Module):
     
 class NNfoil():
     
-    def __init__(self, layers, device, xx, yy, Ma=0.4, alpha_deg=4.0, positivity=True, ckpt_path='model_temp.pth'):
+    def __init__(self, layers, device, xx, yy, Ma=0.4, alpha_deg=4.0, positivity=True, ckpt_path='model_temp.pth',
+                 periodic_jacobian=False):
 
         self.layers = layers
         self.device = device
         self.ckpt_path = ckpt_path
         self.positivity = positivity
+        self.periodic_jacobian = periodic_jacobian  # opt-in: periodic xi differencing at the trailing-edge seam (finding 10)
         self.wall = {}
         self.far = {}
         self.log = {'losses':[], 'losses_b':[], 'losses_f':[], 'losses_s':[], 'Cl':[], 'time':[]}
@@ -143,7 +145,10 @@ class NNfoil():
         self.yy = self.yy0 + (1 - self.cdist) * dy # 网格节点增量
         
         nodes = torch.arange(-3,4,1, device=self.device, dtype=torch.long)
-        Jac, Jac_inv = jacobian_trans(self.xx0.double(), self.yy.double(), nodes, boundary=(1,1))
+        if self.periodic_jacobian:
+            Jac, Jac_inv = jacobian_trans_periodic(self.xx0.double(), self.yy.double(), nodes)
+        else:
+            Jac, Jac_inv = jacobian_trans(self.xx0.double(), self.yy.double(), nodes, boundary=(1,1))
         self.J = torch.det(Jac).reshape(-1,1).float()
         self.Jac_inv = Jac_inv.reshape(-1,2,2).float()
 

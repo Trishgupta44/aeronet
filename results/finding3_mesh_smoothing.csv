@@ -1,0 +1,4 @@
+variant,cross_coeff,n_xi,n_eta,iterations,time_s,max_abs_winslow_residual,min_grid_angle_deg,jacobian_single_signed,max_dist_to_bundled,source
+upstream,0.5,50,25,3287,3.86996,0.000194682,85.9809,True,0.000325143,measured
+winslow,2,50,25,3290,3.88632,1.99134e-06,86.8473,True,0.0113385,measured
+bundled,,50,25,,,0.00019505,85.9808,True,0,measured

@@ -58,6 +58,16 @@ def jacobian_trans(x, y, nodes, boundary=(0,0)):
     jac_inv = torch.inverse(jac)
     return jac, jac_inv
 
+def jacobian_trans_periodic(x, y, nodes):
+    """Like jacobian_trans(..., boundary=(1,1)) but xi is treated as periodic (finding 10).
+
+    x, y are the closed ring (N+1, M): row N repeats row 0. The Jacobian is computed on the open ring
+    (rows 0..N-1) with periodic differencing in xi (boundary=2) and one-sided differencing in eta (boundary=1),
+    then re-closed by repeating row 0, so the result has the same shape as jacobian_trans on the closed ring.
+    """
+    jac, jac_inv = jacobian_trans(x[:-1], y[:-1], nodes, boundary=(2, 1))
+    return torch.cat([jac, jac[:1]]), torch.cat([jac_inv, jac_inv[:1]])
+
 def diff2d_jac_inv(jac_inv, u, nodes, boundary=(0,0)):
     u_xi = diff2d(u, nodes, dim=0, boundary=boundary[0])
     u_eta = diff2d(u, nodes, dim=1, boundary=boundary[1])
