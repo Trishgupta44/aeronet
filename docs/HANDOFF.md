@@ -14,13 +14,26 @@
   C6 (export), C11 (ablation flags), C9 (figures + `docs/milestones/M3-pinn-results.md`).
 - Held until Plan B is merged: C7, C8, C10 (they need Plan B's backend and `FlowCanvas`).
 
-## Running right now (started 2026-11-06 01:14)
-- `results/run_plan_c.sh` runs E1 -> E2 (probe, resume) -> E3 sequentially, logging to
-  `results/runs/planc_progress.log` ("ALL DONE" when finished; about 3-5 h). A hidden PowerShell holds the laptop
-  awake until then. When done: `research/.venv/Scripts/python research/experiments.py collect e1` (then e2, e3),
-  commit `results/summary.csv`, `results/e*_rounds.csv` and the small run files, then do C4, C5, C9.
-- Budget note: the weekly Claude limit is nearly used up (extra usage is disabled), so priority order is
-  C4, C5, C9 (numbers and the M3 brief), then Plan B core (B1-B3, B7-B8), then C6-C8.
+## State when the laptop was closed (2026-11-06 about 11:20)
+- Branch `plan-c-pinn-results` (NOT merged into `main`; `main` has Plan A only). Everything below is committed here.
+- **E1 done and committed** (`results/e1_rounds.csv`, roadmap finding 8h): all six 50x25 runs reach Cp RMS
+  0.027-0.032 by round 3-5, then 5 of 6 degrade (RMS 0.12-0.22). Neither positivity setting wins. Recipe: stop at
+  3-5 rounds; test the C11 remedies.
+- **Experiment chain `results/run_plan_c.sh` was still running** (E2 200x100 grid-sequenced run at round 9 of 20;
+  E3 NACA 2412 not started). Closing the laptop freezes it (Modern Standby); it resumes when the machine wakes
+  if the processes survive. If the python processes are gone, resume like this (repo root, Git Bash):
+  - E2: `research/.venv/Scripts/python NNfoil/run_case.py --mesh NNfoil/mesh/NACA0012_200_100.x --shape NACA0012
+    --mach 0.4 --alpha 4 --rounds <remaining> --threads 8 --out results/runs/naca0012_200x100_a4_m04_gs_nopos
+    --no-positivity --resume`
+  - E3: `research/.venv/Scripts/python research/experiments.py commands e3 > /tmp/e3.sh; bash /tmp/e3.sh`
+  - then `research/.venv/Scripts/python research/experiments.py collect e2` (and `e3`), commit
+    `results/summary.csv`, `results/e*_rounds.csv` and the small run files (`config.json`, `log.json`,
+    `snapshots.json`); never commit `model.pt` or `field.npz`.
+- Only one training process at a time (timings). Check: `Get-Process python`.
+- Weekly Claude limit is nearly used up (extra usage disabled). Priority after the chain: C4 (speed table, needs an
+  idle CPU), C5 (cylinder), C9 (figures + `docs/milestones/M3-pinn-results.md`); then Plan B core
+  (B1-B3, B7-B8); then C6-C8, C11.
+- For unattended runs set the lid action to "Do nothing" (plugged in) and sleep to "Never".
 
 ## Not started
 - **Plan B (demo v2: draw any shape, animated flow, cars)**, `docs/superpowers/plans/2026-11-05-plan-B-demo-v2.md`.
