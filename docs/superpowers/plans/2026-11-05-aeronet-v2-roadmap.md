@@ -108,6 +108,17 @@ results) and a project with solid measured numbers. Deliver everything the exist
    So the picture is mixed: positivity hurt on 50×25 (8f) but may prevent the 100×50 collapse. One seed per
    case proves nothing. A12b runs the seed check in both modes (see Plan A). Do not claim either direction
    until it is done.
+8h. **E1 result (measured, 50x25, 3 seeds x 2 modes, 20 rounds; `results/e1_rounds.csv`): accuracy is reached
+   early and then lost in 5 of 6 runs, whatever the positivity setting.** Cp RMS vs FVM 800x400 at round 3-5
+   is 0.027-0.032 in all six runs (about 4x better than the FVM 50x25 on its own mesh, 0.108). Later, the error
+   jumps to 0.12-0.22 and Cl falls to 0.17-0.32 in five runs: positivity on, jumps at round 8 (s0), 16 (s1),
+   17 (s2); positivity off, at round 4 (s1) and 7-11 (s2); only nopos seed 0 stayed good (final RMS 0.0325).
+   Final-round RMS (pos | nopos): s0 0.073 | 0.033, s1 0.154 | 0.183, s2 0.162 | 0.222. The earlier
+   conclusion "positivity hurts" (8f) came from the lucky nopos seed 0 and is withdrawn: **neither mode wins**.
+   Positivity only delays the jump. The cause is not the residual (it keeps falling); the circulation (Cl) is
+   not pinned (finding N22). Practical recipe for the demo and report: **stop at 3-5 rounds**; report the
+   trajectory; test the candidate remedies in C11 (robust loop, periodic input, hard far field, a panel-method
+   prior). 100x50 behaves better (seed-check runs were 5 rounds; the 20-round seed-0 run stayed stable).
 8c. **The FVM Cp files are not stored in contour order.** Integrating Cl directly from them gives nonsense
    (0.355). Sort the points by angle about the centroid first (`metrics.order_contour`).
 9. **The "draw any shape" route works.** A prototype that resamples any closed curve and runs the panel

@@ -1,0 +1,1 @@
+{"run_id": "naca0012_50x25_a4_m04_s2_r20", "mesh_file": "NNfoil/mesh/NACA0012_50_25.x", "mesh": "50x25", "shape": "NACA0012", "mach": 0.4, "alpha_deg": 4.0, "layers": [2, 128, 128, 128, 128, 128, 4], "rounds": 20, "lbfgs_max_iter": 1000, "threads": 8, "positivity": true, "seed": 2, "torch_version": "2.15.0+cpu", "started_utc": "2026-11-05T19:52:12Z"}
