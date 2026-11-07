@@ -130,9 +130,10 @@ check are wall-clock and some runs were stalled by the machine (one first round 
 - **Random airfoils 1-5**: the geometry matches the meshes, but the best-fit conditions differ per airfoil (Airfoil1
   about Mach 0.25 at 6 deg, Airfoil5 about Mach 0.45 at 4.5 deg; fitted, roadmap; Airfoils 2 and 3 fit poorly). No
   comparison is made until the paper's conditions are known.
-- **Cylinder** (alpha 0, Mach about 0.4): panel method with Prandtl-Glauert has RMS about 0.30 against the FVM file
-  (quoted from the roadmap, minimum Cp -3.70 against -3.27 predicted). The linear Mach correction fails on bluff
-  bodies, which is the case for the full-Euler PINN. Not yet measured with the PINN.
+- **Cylinder** (alpha 0, Mach about 0.4): **superseded by E5 (Milestone 3):** an earlier version of this note quoted an RMS of about 0.30 for the
+  panel method with Prandtl-Glauert. The measured value is **0.188** (0.307 is the incompressible circle). The PINN
+  measured later: RMS 0.134 to 0.140 after 10 rounds on 50x25 (`results/summary.csv`, experiment E5). Minimum Cp
+  -3.70 (FVM) against -3.27 (panel + PG).
 
 ## 6. Next steps
 

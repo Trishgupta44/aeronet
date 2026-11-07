@@ -24,7 +24,7 @@ the FVM. Every number on screen or in the report comes from a file in `results/`
 | NNfoil runs on CPU | about **72 s per training round** at 50×25 (8 threads); 20 rounds ≈ 25 min | Training is feasible without a GPU |
 | FVM error grows on coarse meshes | Cp RMS vs 800×400: 0.108 (50×25), 0.046 (100×50), 0.019 (200×100), 0.006 (400×200) | The baseline the PINN must beat |
 | Panel method (current demo) vs FVM | RMS 0.0099 on NACA 0012 | The stand-in is accurate for slender airfoils… |
-| …but it fails on a cylinder | RMS ≈ 0.30; its Cp_min is −3.27 vs FVM's −3.70. An early PINN cylinder run reached −3.57 | A clear "why we need the PINN" result |
+| …but it is weaker on a cylinder | RMS 0.188 (corrected 2026-11-08; an earlier 0.30 was the incompressible circle); its Cp_min is −3.27 vs FVM's −3.70. The PINN reached RMS 0.134–0.140 and Cp_min −3.54 to −3.67 | A clear "why we need the PINN" result |
 | Finding 3 (mesh smoothing) | **Confirmed**: the cross term is 4× too small (−0.5β instead of −2β). Low impact: both grids are valid | Settles a claim from the proposal with evidence |
 | **New finding 10** | Wrong-sign Jacobian at the trailing-edge seam on every bundled mesh (1–2 cells). Periodic differencing fixes it | A bug nobody had listed |
 | Positivity fix (finding 2) | It works (p and rho ≥ 0.001), but it **slowed early training** in a first test | An interesting result for experiment E1. Needs ≥ 10 rounds and 2 seeds |
@@ -157,7 +157,7 @@ live demo, and an NNfoil credit footer.
 | E2 | Does the PINN beat the FVM on sparse meshes? (the paper's claim) | 50×25, 100×50 (and 200×100 if under 3 h), all against 800×400 |
 | E3 | A second airfoil plus an angle sweep | NACA 2412 at −4°, 0°, 4° and 8°. The Mach number is confirmed from the paper first; otherwise it is labelled "fitted 0.25" |
 | E4 | Speed: is the PINN fast to use? | PINN inference (warm-up, then 100 calls), training time, panel, NeuralFoil (measured: 3.5 ms per call), FVM time quoted from the paper and labelled "quoted" |
-| E5 | Where does the simple model fail? | The cylinder at Mach 0.4: panel + Prandtl-Glauert is off by RMS 0.30, and the PINN should do much better |
+| E5 | Where does the simple model fail? | The cylinder at Mach 0.4: panel + Prandtl-Glauert is off by RMS 0.188 (measured), and the PINN reached 0.134–0.140: better, by a modest margin |
 
 - **Decision:** the airfoil experiments use the **original** mesh coefficient, and new shapes use the
   corrected one. **Why:** our airfoil runs stay comparable with the bundled meshes and FVM data.

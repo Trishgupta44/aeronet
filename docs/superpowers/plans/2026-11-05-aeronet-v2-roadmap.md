@@ -47,9 +47,12 @@ results) and a project with solid measured numbers. Deliver everything the exist
    conditions must come from the paper. Do not compare against them at a guessed condition.
 4. **The cylinder FVM files (`FVM_Cp/Cylinder_*`) are at α = 0 and Mach ≈ 0.4** (the stagnation point
    sits at 180°, and its Cp of 1.044 matches Mach 0.4). Their minimum Cp is −3.70. Incompressible potential
-   flow gives −3.00, and Prandtl-Glauert at Mach 0.4 gives −3.27. So the RMS error of the panel method
-   with Prandtl-Glauert is about **0.30**: the linear Mach correction fails on bluff bodies. This is a
-   strong "why the PINN (full Euler) is needed" result. Measure the PINN on the cylinder in Phase C.
+   flow gives −3.00, and Prandtl-Glauert at Mach 0.4 gives −3.27. **CORRECTED 2026-11-08 by E5 (measured, `results/summary.csv`):**
+   the panel method with Prandtl-Glauert has Cp RMS **0.188** against FVM 800x400 (an earlier note here said
+   "about 0.30": that figure is the incompressible circle at Mach 0, RMS 0.307). Its minimum Cp is -3.27 against
+   -3.70 (FVM). The PINN on a 50x25 O-grid after 10 rounds: RMS **0.140** (positivity on, Cp_min -3.54) and
+   **0.134** (positivity off, Cp_min -3.67). So the PINN beats panel+PG on the cylinder, by a modest margin,
+   and sits close to the FVM at the suction peak. It is not better than the FVM at 200x100 (RMS 0.079).
 5. **The PINN already beats the FVM on the sparse mesh (headline result, measured).** FVM Cl (from the
    ordered FVM Cp files) for NACA 0012 at 4° and Mach 0.4 is 0.4265 at 50×25, 0.4803 at 100×50, 0.5046 at
    200×100, 0.5146 at 400×200 and **0.5193 at 800×400**. The upstream PINN on the **50×25** mesh gave
