@@ -258,6 +258,129 @@ Risk: the PG-corrected field near the leading edge may be a poor prior at Ma 0.4
 
 ---
 
+## 3c. Late-round drift: which signal can stop training without the FVM answer?
+
+Status: **Step 1 done (existing data, no training). Step 2 done (diagnostics and stop rules in `NNfoil/run_case.py`, 40 tests in `research/tests/test_run_case.py` pass). Step 3 (new runs, needs an idle CPU) not started: waiting for the go-ahead.**
+NNfoil is by Cao, Song and Zhang (arXiv 2401.08705, no licence). Labels: **measured** = computed from a file in `results/`.
+
+### The problem
+
+On the 50×25 mesh the Cp error against FVM 800×400 is best after 3-7 rounds and then gets worse in 6 of 6 runs, while the
+training loss keeps falling (`results/e1_rounds.csv`). Choosing the best round by comparing with the FVM answer is test-set
+leakage, so a stopping rule must not use the FVM file.
+
+### Step 1: what the existing logs say (measured)
+
+Script: `research/drift_analysis.py` (reads `log.json` and `snapshots.json` of every NACA0012, 4 deg run folder with at
+least 6 rounds; Cp error computed with `metrics.cp_error` against `NNfoil/FVM_Cp/NACA0012_800_400_Cp.dat`).
+Output: `results/drift_step1.csv`. Re-run: `research/.venv/Scripts/python research/drift_analysis.py`.
+
+Spearman rho between a signal and the Cp error, over the rounds from the best round onward (the phase where the answer
+gets worse). Positive = the signal rises when the error rises, which is what a stopping rule needs.
+
+| 50×25 run | Best round (Cp RMS) | Last round (Cp RMS) | rho loss | rho loss_b | rho \|dCl\| | rho wall-Cp change |
+|---|---|---|---|---|---|---|
+| seed 0, positivity on | r4 (0.0275) | r19 (0.0734) | -0.94 | -0.96 | +0.20 | +0.26 |
+| seed 0, positivity off | r7 (0.0262) | r18 (0.0325) | +0.04 | -0.14 | +0.58 | +0.59 |
+| seed 1, positivity on | r4 (0.0276) | r20 (0.1539) | -0.92 | -0.98 | -0.10 | +0.11 |
+| seed 2, positivity on | r5 (0.0271) | r20 (0.1621) | -0.89 | -0.90 | +0.38 | +0.46 |
+| seed 1, positivity off | r3 (0.0278) | r19 (0.1834) | -0.99 | -0.99 | -0.19 | -0.66 |
+| seed 2, positivity off | r4 (0.0295) | r19 (0.2218) | -0.94 | -0.98 | -0.27 | -0.54 |
+
+(`loss_f` = PDE loss behaves like `loss`: -0.98 to +0.08, see the CSV.)
+
+Other meshes, rho over all rounds (the error does not drift there, so there is no "from best round" phase):
+
+| Run | Rounds | Cp RMS first / best / last | rho loss | rho \|dCl\| | rho wall-Cp change |
+|---|---|---|---|---|---|
+| 100×50 cold start, positivity on, seed 0 | 20 | best r18 0.0144, last 0.0145 | +0.35 | +0.44 | +0.37 |
+| 200×100 grid-sequenced, positivity off, seed 0 | 11 so far (**run still going, 30 planned**) | r1 0.0089, last 0.0089, range 0.0089-0.0094 | -0.61 | -0.50 | -0.58 |
+
+#### What this shows
+
+1. **No signal that is already logged can pick the best round.** In every 50×25 run the round with the lowest loss
+   (rounds 11-20) is 7 to 16 rounds after the round with the lowest error (rounds 3-7); the same holds for the PDE loss, the
+   boundary loss, |dCl| and the wall-Cp change.
+2. **Falling loss means a worse answer, in 5 of 6 runs** (rho -0.89 to -0.99 for loss and boundary loss). The one
+   exception is seed 0 with positivity off, where the error rises only from 0.0262 to 0.0325.
+3. **|dCl| and the wall-Cp change have no consistent sign** (-0.66 to +0.59), so they are not a dependable stopping signal either.
+4. **The plateau rule from the task (|dCl| < 0.002 and wall-Cp change < 0.005 for 2 rounds) never fires in any of the 6
+   drifting runs** (replayed on the existing logs with those thresholds, not tuned). It fires at round 7 on the
+   100×50 run and round 5 on the 200×100 run, both of which do not drift. In the drifting runs the wall Cp keeps moving
+   by 0.004-0.05 RMS per round, even at the end. The state is not converged; it wanders. **Expect the plateau rule to fail
+   on exactly the runs it is meant for, unless Step 3 shows otherwise.**
+5. **The drift looks specific to the coarsest mesh in our data.** 50×25 drifts in 6 of 6 runs; the single 100×50 cold run
+   and the (incomplete) 200×100 run do not. That is 1 and 1 runs, so treat it as a pointer, not a result.
+
+#### Hypothesis to test in Steps 2-3 (not measured)
+
+The PDE residual is enforced only at the mesh nodes (1275 points on 50×25, 80% of them per round), but the wall Cp that
+we score is read at the **wall face centres** (xi + 0.5), which are *between* nodes. A network with about 67,000 weights
+fitted to 1275 points can drive the node residual down while the in-between values drift. This would explain why the
+coarsest mesh drifts and the finer ones do not, and why the node loss keeps falling. It predicts that a residual
+evaluated at **off-grid** points (Step 2a) rises when the error rises. The second candidate (the J² weighting gives the
+inner quarter of the mesh almost no weight, N5 in section 1b) predicts that the **inner-row** residual
+(Step 2b) rises. Step 3 decides between them. Either may be wrong.
+
+### Step 2: the diagnostics, and a first look at the saved final models (exploratory, no training)
+
+`NNfoil/run_case.py` now has two opt-in flags, both off by default (a default run folder is unchanged, tested):
+`--diagnostics` stores in `log.json["diag"]`, per logged round: `d_cl`, `d_cp` (round-to-round change), the
+squared Euler residual at the **mesh nodes** (`res_node_w`, `res_node`, `res_node_inner`) and at the **cell centres**
+between nodes (`res_off_w`, `res_off`, `res_off_inner`), and `wall_vn_rms` (wall slip). `--stop-rule none | fixed:N | plateau`
+(plateau thresholds `--plateau-dcl 0.002 --plateau-dcp 0.005 --plateau-window 2`). `res_node_w` x 2e4 equals the training
+PDE loss (tested against `NNfoil.Msef`). `_w` = the loss's own J^2 weighting. The unweighted means leave out 3 xi-cells at each
+end, because **92-99% of the unweighted off-grid residual sum sits in the 5 cells next to the trailing-edge seam**, where
+J -> 0 (measured on 3 saved models). My first version of the diagnostic did not do this and mostly measured that singularity;
+the numbers below are from the corrected version.
+
+First look: the **final saved model** of 8 existing runs scored with these diagnostics (`model.pt` of each run; one number
+per run, so this compares runs, not rounds, and mixes meshes):
+
+| Run (final round) | Cp RMS vs FVM | node residual (J^2-weighted) | off-grid residual (J^2-weighted) | ratio off / node | wall slip RMS |
+|---|---|---|---|---|---|
+| 100x50 cold, seed 0 | 0.0145 | 1.3e-9 | 7.2e-10 | 0.6 | 0.0047 |
+| 100x50 grid-sequenced, seed 0 | 0.0162 | 1.7e-9 | 1.0e-8 | 6 | 0.0044 |
+| 50x25 positivity off, seed 0 | 0.0325 | 2.7e-9 | 2.0e-8 | 8 | 0.0009 |
+| 50x25 positivity on, seed 0 | 0.0734 | 6.7e-9 | 3.2e-7 | 49 | 0.0023 |
+| 50x25 positivity on, seed 1 | 0.1539 | 4.3e-9 | 9.3e-6 | 2,182 | 0.0024 |
+| 50x25 positivity on, seed 2 | 0.1621 | 1.8e-9 | 8.1e-6 | 4,434 | 0.0021 |
+| 50x25 positivity off, seed 1 | 0.1834 | 2.7e-10 | 3.5e-6 | 13,247 | 0.0010 |
+| 50x25 positivity off, seed 2 | 0.2218 | 6.1e-10 | 1.2e-6 | 2,039 | 0.0015 |
+
+(measured; Spearman rho between Cp RMS and the ratio = 0.86, n = 8, one point per run, not an independent test.)
+
+What it suggests (a hypothesis until Step 3 measures it per round): the PDE loss at the nodes is about zero for **every**
+model, so it cannot tell a good model from a drifted one, but **between the nodes** the drifted 50x25 models have a residual
+2,000-13,000 times their node residual, the healthy ones 1-8 times. The wall-slip condition is satisfied in all of them
+(0.001-0.005), so it is not the boundary condition that fails. That fits "the network fits the PDE only at the training
+points and is free to drift in between", and the wall Cp we score is read between nodes. If Step 3 confirms it per round, then
+(1) `res_off_w` (reference-free) is a candidate stopping signal, and (2) the fix to test is to train on points that are not
+only the mesh nodes (for example the cell centres as extra collocation points), which is a change to the loss, so it goes
+behind a flag and is an ablation, not the default.
+
+Replaying the task's plateau rule on the old logs (Step 1) says it will not stop the drifting runs. The off-grid ratio might.
+
+### Caveats
+
+- Round-to-round correlations inside one run are not independent samples, so rho here describes the shape of each run,
+  not a significance test. Eight runs, one case (NACA0012, Mach 0.4, 4 deg).
+- The logged loss is evaluated on a freshly drawn 80% of the nodes each round (finding N2), so it carries sampling noise.
+- The 200×100 run was still training when this was written (round 11 of 30).
+
+### Next (Step 3, needs an idle CPU; not started)
+
+50x25, seeds 0-2, 12 rounds each, with `--diagnostics`, one process at a time. Choose the stopping signal on seed 0 only
+(candidates: `res_off_w`, and the ratio `res_off_w / res_node_w`), then report it unchanged on seeds 1-2 and on a
+grid-sequenced 100x50 run. Put the per-round table in `results/summary.csv` terms and add the outcome here. The optional
+Step 4 (J^2 vs |J| weighting, or extra off-node collocation points) only follows if the per-round data support it.
+
+Extra caveats for Step 2: the final-model table above compares different runs and meshes at one point each; it cannot
+separate "drift" from "mesh". The diagnostics add one residual evaluation per round (not measured for cost; on a 50x25 mesh
+it is about 2,500 points).
+
+---
+
 ## 4. Running NNfoil on a user-drawn closed 2D shape (design for the plan)
 
 NNfoil itself does not care how the mesh was made: with `use_cst=False` it needs only an O-grid in the `.x` layout (`N M`, then M rows of X, then M rows of Y; wall = first row, far field = last row, wall ordered TE → upper → LE → lower, counter-clockwise). Steps:

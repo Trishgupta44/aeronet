@@ -160,6 +160,159 @@ def _field(nn) -> dict:
     }
 
 
+# ---------------------------------------------------------------- reference-free diagnostics and stop rules
+# AeroNet's own addition (not in the NNfoil paper). Everything here is opt-in (``--diagnostics``, ``--stop-rule``) and
+# uses no reference solution, so it can be used to decide when to stop without looking at the FVM answer.
+GAMMA = 1.4
+INNER_FRACTION = 0.25  # "inner" = the eta rows closest to the wall (first quarter of the rows)
+SEAM_CELLS = 3         # unweighted diagnostics leave out this many xi-cells at each end (the trailing-edge seam)
+
+
+def cell_centre_metrics(xx, yy) -> dict:
+    """Mesh metrics at the centres of the (M-1) x (N-1) cells of a closed mesh, i.e. at (xi + 0.5, eta + 0.5).
+
+    ``xx``, ``yy`` are the (M, N) node arrays (the last xi row closes the loop). The centre metrics are the average of
+    the two parallel cell edges, which is second-order accurate. They have the same layout as ``Mesh()``:
+    ``jac = [[x_xi, y_xi], [x_eta, y_eta]]`` so that ``[q_x, q_y] = jac_inv @ [q_xi, q_eta]``, and ``J = det(jac)``.
+    Returns numpy arrays ``XE`` (n, 2) (the (xi, eta) of each centre), ``jac_inv`` (n, 2, 2), ``J`` (n,) and the
+    integer row index ``j`` (n,) of each centre.
+    """
+    x, y = np.asarray(xx, dtype=float), np.asarray(yy, dtype=float)
+
+    def d_xi(a):
+        return 0.5 * ((a[1:, :-1] - a[:-1, :-1]) + (a[1:, 1:] - a[:-1, 1:]))
+
+    def d_eta(a):
+        return 0.5 * ((a[:-1, 1:] - a[:-1, :-1]) + (a[1:, 1:] - a[1:, :-1]))
+
+    x_xi, y_xi, x_eta, y_eta = d_xi(x), d_xi(y), d_eta(x), d_eta(y)
+    det = x_xi * y_eta - y_xi * x_eta
+    inv = np.stack([y_eta, -y_xi, -x_eta, x_xi], axis=-1) / det[..., None]
+    m, n = det.shape
+    ii, jj = np.meshgrid(np.arange(m), np.arange(n), indexing="ij")
+    return {"XE": np.stack([ii.ravel() + 0.5, jj.ravel() + 0.5], axis=1), "jac_inv": inv.reshape(-1, 2, 2),
+            "J": det.ravel(), "j": jj.ravel()}
+
+
+def euler_residual_sq(model, XE, jac_inv, gamma: float = GAMMA):
+    """Squared Euler residual ``e1^2 + e2^2 + e3^2 + e4^2`` at the points ``XE`` (n, 2), one value per point.
+
+    Same four equations as ``NNfoil.Msef`` (continuity, two momentum, energy); ``jac_inv`` (n, 2, 2) maps the
+    (xi, eta) derivatives to (x, y). Not weighted, not scaled by the 2e4 loss factor.
+    """
+    with torch.enable_grad():
+        XE = XE.clone().requires_grad_(True)
+        pred = model(XE)
+        grads = torch.stack([nf.fwd_gradients(pred[:, k:k + 1], XE) for k in range(4)], dim=1)  # (n, 4, 2)
+        xy = torch.einsum("nij,nkj->nki", jac_inv.to(grads.dtype), grads)  # (n, 4, 2): d/dx, d/dy of u, v, p, rho
+        u, v, p, rho = (pred[:, k] for k in range(4))
+        u_x, u_y, v_x, v_y = xy[:, 0, 0], xy[:, 0, 1], xy[:, 1, 0], xy[:, 1, 1]
+        p_x, p_y, rho_x, rho_y = xy[:, 2, 0], xy[:, 2, 1], xy[:, 3, 0], xy[:, 3, 1]
+        a2 = gamma * p / rho
+        e1 = rho * u_x + u * rho_x + rho * v_y + v * rho_y
+        e2 = u * u_x + v * u_y + p_x / rho
+        e3 = u * v_x + v * v_y + p_y / rho
+        e4 = rho * a2 * u_x + rho * a2 * v_y + u * p_x + v * p_y
+        return (e1 ** 2 + e2 ** 2 + e3 ** 2 + e4 ** 2).detach()
+
+
+def _inner_rows(n_eta: int) -> int:
+    """Number of wall-nearest eta rows counted as "inner" (a quarter of the rows, at least one)."""
+    return max(1, int(round(INNER_FRACTION * (n_eta - 1))))
+
+
+def diagnostics_context(nn) -> dict:
+    """Precompute the points, weights and masks the per-round diagnostics need (once per run)."""
+    ref = nn.XE
+    dev, dt = ref.device, ref.dtype
+    metr = cell_centre_metrics(nn.xx0.detach().cpu().numpy(), nn.yy.detach().cpu().numpy())
+    n_inner = _inner_rows(nn.N)
+    m_last = nn.M - 1  # xi index of the closing row; the trailing-edge seam is at xi = 0 and xi = m_last
+    xi_n = nn.xxi.reshape(-1).cpu().numpy()
+    eta_n = nn.eeta.reshape(-1).cpu().numpy()
+    # unweighted means leave out the cells / nodes next to the seam: the mesh metrics blow up there (J -> 0)
+    cell_ok = (metr["XE"][:, 0] > SEAM_CELLS) & (metr["XE"][:, 0] < m_last - SEAM_CELLS)
+    node_ok = (xi_n >= SEAM_CELLS) & (xi_n <= m_last - SEAM_CELLS)
+    t = lambda arr, **kw: torch.as_tensor(arr, device=dev, **kw)  # noqa: E731
+    return {
+        "cell_XE": t(metr["XE"], dtype=dt), "cell_jac_inv": t(metr["jac_inv"], dtype=dt),
+        "cell_J2": t(metr["J"] ** 2, dtype=dt),
+        "cell_ok": t(cell_ok), "cell_inner_ok": t(cell_ok & (metr["j"] < n_inner)),
+        "node_XE": ref, "node_jac_inv": nn.Jac_inv, "node_J2": nn.J[:, 0] ** 2,
+        "node_ok": t(node_ok), "node_inner_ok": t(node_ok & (eta_n < n_inner)),
+        "n_inner": n_inner,
+    }
+
+
+def round_diagnostics(nn, ctx: dict) -> dict:
+    """Reference-free numbers for the current model (plain floats; raw residuals without the 2e4 factor).
+
+    ``*_w`` use the loss's own J^2 weighting (which switches off the near-singular cells), the others are plain means
+    over the points away from the trailing-edge seam (``SEAM_CELLS`` xi-cells at each end left out).
+    "node" = the mesh nodes the network is trained on; "off" = the cell centres (xi + 0.5, eta + 0.5), which the
+    network never sees as training points but where the wall Cp is read.
+
+    * ``res_node_w``, ``res_off_w``       weighted mean squared residual (``res_node_w`` * 2e4 is the PDE loss on all nodes)
+    * ``res_node``, ``res_off``           unweighted mean away from the seam
+    * ``res_node_inner``, ``res_off_inner`` the same over the inner quarter of the eta rows only
+    * ``wall_vn_rms``                      RMS normal velocity at the wall face centres (wall slip; V_inf = 1)
+    """
+    r_c = euler_residual_sq(nn.model, ctx["cell_XE"], ctx["cell_jac_inv"])
+    r_n = euler_residual_sq(nn.model, ctx["node_XE"], ctx["node_jac_inv"])
+    wc, wn = ctx["cell_J2"], ctx["node_J2"]
+    with torch.no_grad():
+        pred = nn.model(nn.wall["XE_f"])
+        vn = pred[:, 0:1] * nn.wall["nor_f"][:, 0:1] + pred[:, 1:2] * nn.wall["nor_f"][:, 1:2]
+    return {
+        "res_node_w": float((r_n * wn).sum() / wn.sum()), "res_off_w": float((r_c * wc).sum() / wc.sum()),
+        "res_node": float(r_n[ctx["node_ok"]].mean()), "res_off": float(r_c[ctx["cell_ok"]].mean()),
+        "res_node_inner": float(r_n[ctx["node_inner_ok"]].mean()),
+        "res_off_inner": float(r_c[ctx["cell_inner_ok"]].mean()),
+        "wall_vn_rms": float(torch.sqrt((vn ** 2).mean())),
+    }
+
+
+def round_changes(cl, cp, prev_cl, prev_cp):
+    """(|Cl - Cl_prev|, RMS(Cp - Cp_prev) over the wall faces), or (None, None) for the first round."""
+    if prev_cl is None or prev_cp is None:
+        return None, None
+    return abs(float(cl) - float(prev_cl)), float(np.sqrt(np.mean((np.asarray(cp) - np.asarray(prev_cp)) ** 2)))
+
+
+def record_diag(log: dict, rec: dict) -> None:
+    """Append one round's diagnostics to ``log["diag"]`` so every list has one entry per logged round (None = n/a)."""
+    n = len(log["round"])  # the round being recorded is already in log["round"]
+    diag = log.setdefault("diag", {})
+    for key in set(diag) | set(rec):
+        lst = diag.setdefault(key, [])
+        lst.extend([None] * (n - 1 - len(lst)))
+        lst.append(rec.get(key))
+
+
+def parse_stop_rule(text):
+    """``None``/``"none"`` -> ("none", None); ``"plateau"`` -> ("plateau", None); ``"fixed:N"`` -> ("fixed", N)."""
+    if text is None or text == "none":
+        return "none", None
+    if text == "plateau":
+        return "plateau", None
+    if text.startswith("fixed:"):
+        try:
+            n = int(text[len("fixed:"):])
+        except ValueError:
+            n = 0
+        if n >= 1:
+            return "fixed", n
+    raise SystemExit(f"--stop-rule must be none, plateau or fixed:N (N >= 1), got {text!r}")
+
+
+def plateau_reached(d_cl, d_cp, dcl_tol: float = 0.002, dcp_tol: float = 0.005, window: int = 2) -> bool:
+    """True when the last ``window`` rounds all have |dCl| < dcl_tol and a wall-Cp RMS change < dcp_tol."""
+    if window < 1 or len(d_cl) < window or len(d_cp) < window:
+        return False
+    pairs = list(zip(d_cl[-window:], d_cp[-window:]))
+    return all(a is not None and b is not None and a < dcl_tol and b < dcp_tol for a, b in pairs)
+
+
 def _write_outputs(out: Path, nn, log: dict, snaps: dict) -> None:
     _atomic_json(out / "log.json", log)
     _atomic_json(out / "snapshots.json", snaps)
@@ -182,6 +335,15 @@ def parse_args(argv):
     ap.add_argument("--seed", type=int, default=0)
     ap.add_argument("--resume", action="store_true", help="continue the run in --out")
     ap.add_argument("--init-from", help="grid sequencing: coarse run folder (config.json + model.pt) to start from")
+    ap.add_argument("--diagnostics", action="store_true",
+                    help="after every round also log reference-free diagnostics (off-grid and inner-row residual, wall "
+                         "slip, round-to-round change) to log.json under 'diag'; costs one extra residual evaluation per round")
+    ap.add_argument("--stop-rule", default="none",
+                    help="none (default) | fixed:N (stop after N logged rounds) | plateau (stop when |dCl| and the wall-Cp "
+                         "change stay below the --plateau-* limits for --plateau-window rounds); --rounds stays the maximum")
+    ap.add_argument("--plateau-dcl", type=float, default=0.002)
+    ap.add_argument("--plateau-dcp", type=float, default=0.005)
+    ap.add_argument("--plateau-window", type=int, default=2)
     return ap.parse_args(argv)
 
 
@@ -264,6 +426,17 @@ def main(argv=None) -> int:
         nn.log["losses_b"] = list(log["loss_b"])
         nn.log["time"] = list(log["time_s"])  # cumulative: train() continues from the last value
 
+    stop_kind, stop_n = parse_stop_rule(a.stop_rule)
+    want_changes = a.diagnostics or stop_kind == "plateau"  # the cheap round-to-round numbers
+    if stop_kind != "none" or a.diagnostics:  # recorded in config.json only when used, so old run folders look unchanged
+        cfg["stop_rule"] = a.stop_rule
+        cfg["diagnostics"] = bool(a.diagnostics)
+        _atomic_json(cfg_path, cfg)
+    ctx = diagnostics_context(nn) if a.diagnostics else None
+    if stop_kind == "fixed" and len(log["round"]) >= stop_n:
+        print(f"stop rule {a.stop_rule}: {len(log['round'])} rounds already logged, nothing to do", flush=True)
+        return 0
+
     for _ in range(a.rounds):
         before = len(nn.log["losses"])
         nn.train(1)
@@ -274,6 +447,9 @@ def main(argv=None) -> int:
             continue
         cl, cd = nn.evaluate_wall()
         r = len(log["round"]) + 1
+        if want_changes:
+            prev_cl = log["cl"][-1] if log["cl"] else None
+            prev_cp = snaps["rounds"][-1]["cp"] if snaps["rounds"] else None
         log["round"].append(r)
         log["time_s"].append(nn.log["time"][-1])
         log["loss"].append(nn.log["losses"][-1])
@@ -282,8 +458,26 @@ def main(argv=None) -> int:
         log["cl"].append(cl)
         log["cd"].append(cd)
         snaps["rounds"].append({"round": r, "cp": nn.wall["Cp_f"][:, 0].cpu().tolist()})
+        if want_changes:
+            d_cl, d_cp = round_changes(cl, snaps["rounds"][-1]["cp"], prev_cl, prev_cp)
+            rec = {"d_cl": d_cl, "d_cp": d_cp}
+            if a.diagnostics:
+                rec.update(round_diagnostics(nn, ctx))
+            record_diag(log, rec)
+        stop = None
+        if stop_kind == "fixed" and r >= stop_n:
+            stop = a.stop_rule
+        elif stop_kind == "plateau" and plateau_reached(log["diag"]["d_cl"], log["diag"]["d_cp"], a.plateau_dcl,
+                                                         a.plateau_dcp, a.plateau_window):
+            stop = f"plateau (dCl<{a.plateau_dcl}, dCp<{a.plateau_dcp}, {a.plateau_window} rounds)"
+        if stop:
+            log["stop"] = {"rule": stop, "round": r}
         _write_outputs(out, nn, log, snaps)
-        print(f"round {r}: loss={log['loss'][-1]:.4g} Cl={cl:.4f} Cd={cd:.4f} t={log['time_s'][-1]:.1f}s", flush=True)
+        extra = "" if not want_changes or d_cp is None else f" dCl={d_cl:.4f} dCp={d_cp:.4f}"
+        print(f"round {r}: loss={log['loss'][-1]:.4g} Cl={cl:.4f} Cd={cd:.4f} t={log['time_s'][-1]:.1f}s{extra}", flush=True)
+        if stop:
+            print(f"stopped by rule {stop} after round {r}", flush=True)
+            break
     return 0
 
 
