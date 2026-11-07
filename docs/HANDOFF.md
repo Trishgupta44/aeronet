@@ -35,6 +35,15 @@
   (B1-B3, B7-B8); then C6-C8, C11.
 - For unattended runs set the lid action to "Do nothing" (plugged in) and sleep to "Never".
 
+## Design direction (user request, 2026-11-07)
+- The user wants the frontend to look like an aerospace corporate site in the style of embraer.com/en (they are
+  making a sibling aero website). Brief with measured reference styles: `docs/DESIGN_BRIEF.md`. Plan B has a new
+  task B6b (design system and page shell) before B7; B9 defers its "Look" to the brief. Style only: no logo,
+  photos, text or licensed fonts copied.
+- Finding from the improvements session (E1 data, 6 runs): lower training loss goes with a WORSE Cp error in 5 of 6
+  runs (rank correlation -0.48 to -0.98). So the loss is not a usable stopping criterion; stop at 3-5 rounds, and
+  test a Kutta/circulation fix in C11. Fold into the M3 brief.
+
 ## Not started
 - **Plan B (demo v2: draw any shape, animated flow, cars)**, `docs/superpowers/plans/2026-11-05-plan-B-demo-v2.md`.
   It is independent of Plan A and can be run in its own session. Plan D (report, slides) comes last.

@@ -321,6 +321,35 @@ SPORTS_CAR = [(1.00, 0.12), (0.98, 0.17), (0.92, 0.19), (0.80, 0.20), (0.62, 0.2
 
 ---
 
+### Task B6b: Design system and page shell (do this BEFORE B7, so B7-B9 build on it)
+
+**Goal:** the visual foundation from `docs/DESIGN_BRIEF.md`: tokens, fonts, nav, sticky bar, hero slot, section
+bands, buttons, cards, footer. No solver logic changes.
+
+**Files:** create `app/frontend/src/components/SiteHeader.jsx`, `Hero.jsx`, `SiteFooter.jsx`, `Section.jsx`,
+`CardGrid.jsx`; modify `styles.css`, `App.jsx` (layout only), `main.jsx` (font imports), `index.html`,
+`package.json` (the three `@fontsource/*` packages), and add `app/frontend/src/utils/scrollSpy.js` with a test.
+
+**Approach:**
+- Tokens and fonts exactly as in the brief (§2, §3). Self-host fonts; verify with the network disabled.
+- `SiteHeader`: utility strip + main nav (EXPLORE, DRAW, PINN LAB, RESULTS, ABOUT) + a sticky navy bar that fades in
+  after 64 px of scroll with "BACK TO TOP"; mobile hamburger sheet. Our own wordmark and a small SVG airfoil glyph.
+- `Hero`: takes `children` (the canvas is added in B7: use a static dark gradient placeholder for now), headline
+  "SEE THE AIR", mono tagline, two buttons.
+- `Section`: `eyebrow`, `title`, `id`, optional pale band (`--sky-50`); `scroll-margin-top: 56px`.
+- `CardGrid`: 2x2 cards with uppercase compressed title, thumbnail slot and "Find out more →" link.
+- `SiteFooter`: navy, credit line, scope note.
+- `scrollSpy.js`: `activeSection(offsets, scrollY)` returns the id of the section whose top is the last one above
+  `scrollY + 80`. Test: 3 sections, 3 scroll positions.
+- Wire the existing cards into the sections without changing their behaviour (Explore keeps the current layout).
+
+**Tests:** `scrollSpy.test.js` (3 cases); existing 21 frontend tests still pass; `npm run build` succeeds.
+
+**Acceptance:** desktop (1440) and phone (390) screenshots from the browser preview; no horizontal scroll at 390;
+fonts load with the network off. **Commit:** `feat(frontend): design system and page shell (aerospace-corporate look)`
+
+---
+
 ### Task B7: `FlowCanvas.jsx` (the new field view)
 
 **Goal:** a field view that looks like CFD software and comes alive.
@@ -442,14 +471,14 @@ and drawing a figure eight shows the "crosses itself" message. **Commit:** `feat
 `ControlCards.jsx`, `styles.css`, `index.html`; add tests to `flow.test.js`.
 
 **Approach:**
-- **Look:**
-  - A dark "wind-tunnel" hero header (always dark, even in the light theme) with the title, a one-line pitch,
-    and scope pills ("Inviscid · subsonic · 2D", "Panel method now; PINN in PINN Lab").
-  - Keep the light and dark CSS tokens. Add `--hero-bg`, `--hero-ink` and `--particle`.
-  - Make the field card full width above the two-column layout. The cards keep the same structure.
-  - Replace the long yellow "Read this first" notice with a collapsible `<details>` titled "What is real here".
-  - Set `<title>` in `index.html` to "AeroNet: airflow explorer".
-  - Run the frontend-design skill for typography and spacing choices, without adding font or CSS libraries.
+- **Look:** **follow `docs/DESIGN_BRIEF.md` exactly** (the user asked for the site to look like an aerospace
+  corporate site in the style of embraer.com/en; the brief records what was measured there and what we do
+  instead: compressed uppercase headings, mono eyebrow captions, navy sticky bar, full-bleed live-flow hero,
+  2 px-radius buttons, pale card band, hairline panels). Page structure, tokens, fonts (self-hosted
+  `@fontsource` packages, no Google Fonts), motion, do/don't and the acceptance screenshots are all there. Keep
+  the existing light/dark switch. Replace the long yellow "Read this first" notice with a collapsible
+  `<details>` titled "What is real here". Set `<title>` in `index.html` to "AeroNet: airflow explorer".
+  Do **not** copy the reference's logo, name, photos, text or licensed fonts.
 - **PolarCard:** α from −10 to 12 in steps of 1 at the current Mach, for the current code or shape (debounce
   300 ms; reuse the AbortController pattern from `useSolve`). Draw on canvas: the panel Cl line, the
   thin-airfoil dashed line (codes only), a dot at the current α, and axes labelled "α (deg)" and "Cl".
