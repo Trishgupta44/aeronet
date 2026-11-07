@@ -342,3 +342,61 @@ def test_time_pinn_smoke_on_a_tiny_run(tiny_run, capsys):
 
     out = _json.loads(capsys.readouterr().out.strip().splitlines()[-1])
     assert set(out) >= {"infer_ms", "infer_ms_std", "n_points", "threads"} and out["threads"] == 1
+
+# ---------------------------------------------------------------- E5 (cylinder)
+def test_cylinder_wall_is_ccw_from_the_rightmost_point():
+    x, y = ex.cylinder_wall(50)
+    assert x.shape == (50,) and (x[0], y[0]) == pytest.approx((0.5, 0.0), abs=1e-9)
+    assert np.hypot(x, y) == pytest.approx(0.5, abs=1e-6)
+    assert y[1] > 0 and y[-1] < 0  # counter-clockwise: the second node is above the axis
+    assert 0.5 * np.sum(x * np.roll(y, -1) - np.roll(x, -1) * y) > 0
+
+
+def test_cylinder_mesh_file_is_valid_and_loads(tmp_path):
+    import ogrid
+
+    p = ex.ensure_cylinder_mesh(tmp_path, n=50, m=25)
+    assert p.name == "Cylinder_50_25.x" and p.read_text().splitlines()[0] == "50\t25"
+    xx, yy = metrics.load_mesh(p)
+    assert xx.shape == (51, 25) and xx[0, 0] == pytest.approx(0.5) and abs(yy[0, 0]) < 1e-9
+    assert np.hypot(xx[:, 0], yy[:, 0]) == pytest.approx(0.5, abs=1e-6)  # the wall is the circle
+    assert np.hypot(xx[:, -1], yy[:, -1]).min() > 14.0  # far field at R = 15
+    assert ogrid.is_valid(xx[:-1].T, yy[:-1].T)
+
+
+def test_nonlifting_panel_on_a_circle():
+    x, y = ex.cylinder_wall(140)
+    x = x + 0.5  # app frame
+    inc = ex.panel_nonlifting(x, y, 0.0, 0.0)
+    assert inc["cp"].min() == pytest.approx(-3.0, abs=0.03) and inc["cp"].max() == pytest.approx(1.0, abs=0.01)
+    assert abs(inc["cl"]) < 1e-3
+    pg = ex.panel_nonlifting(x, y, 0.0, 0.4)  # Prandtl-Glauert: Cp / sqrt(1 - M^2)
+    assert pg["cp"].min() == pytest.approx(inc["cp"].min() / math.sqrt(1 - 0.16), rel=1e-6)
+    assert pg["cp"].min() == pytest.approx(-3.27, abs=0.05)  # roadmap finding 4 (recomputed here, not copied)
+
+
+def test_cp_extremes():
+    assert ex.cp_extremes(np.array([0.5, 1.04, -3.5, 0.0])) == {"cp_min": -3.5, "cp_stag": 1.04}
+
+
+def test_e5_fvm_and_panel_rows():
+    fvm = ex.e5_fvm_rows()
+    assert [r["mesh"] for r in fvm] == ["50x25", "100x50", "200x100", "400x200", "800x400"]
+    assert all(r["experiment"] == "E5" and r["case"] == "Cylinder_a0" and r["method"] == "fvm" for r in fvm)
+    assert all("Cp_min=" in r["notes"] and "Cp_stag=" in r["notes"] for r in fvm)
+    rows = ex.e5_panel_rows()
+    pg = next(r for r in rows if r["mach"] == 0.4)
+    assert pg["method"] == "panel" and 0.15 < pg["rms_cp"] < 0.25  # recomputed: about 0.19 (roadmap text said about 0.30)
+    assert "Cp_min=-3.2" in pg["notes"] and "Cp_stag=" in pg["notes"]
+    inc = next(r for r in rows if r["mach"] == 0)
+    assert "Cp_min=-3.0" in inc["notes"] or "Cp_min=-2.99" in inc["notes"]
+
+
+def test_e5_specs_and_commands(tmp_path):
+    specs = ex.e5_specs(tmp_path, mesh_dir=tmp_path)
+    assert [s["name"] for s in specs] == ["cylinder_50x25_a0_m04", "cylinder_50x25_a0_m04_nopos"]
+    assert all(s["rounds"] == ex.E5_ROUNDS == 10 for s in specs)
+    lines, notes = ex.plan_commands("e5", tmp_path, mesh_dir=tmp_path)
+    assert len(lines) == 2 and "--shape Cylinder" in lines[0] and "--mach 0.4" in lines[0]
+    assert "--alpha 0" in lines[0] and "--rounds 10" in lines[0] and "--no-positivity" in lines[1]
+    assert "--threads 8" in lines[0] and "--seed 0" in lines[0]

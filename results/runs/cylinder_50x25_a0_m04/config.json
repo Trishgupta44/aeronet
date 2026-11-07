@@ -1,0 +1,1 @@
+{"run_id": "cylinder_50x25_a0_m04", "mesh_file": "results/meshes/Cylinder_50_25.x", "mesh": "50x25", "shape": "Cylinder", "mach": 0.4, "alpha_deg": 0.0, "layers": [2, 128, 128, 128, 128, 128, 4], "rounds": 10, "lbfgs_max_iter": 1000, "threads": 8, "positivity": true, "seed": 0, "torch_version": "2.15.0+cpu", "started_utc": "2026-11-07T19:28:15Z"}

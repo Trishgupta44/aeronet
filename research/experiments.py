@@ -12,6 +12,8 @@ E2  mesh size vs Cp error against FVM 800x400: FVM, panel and PINN (the 200x100 
 E3  NACA 2412 at Ma 0.3 (quoted from the paper): FVM / panel / thin-airfoil polar points and PINN runs at 4 angles.
 E4  speed table: needs ``results/e4_timing.json`` from ``research/time_inference.py --e4`` (run alone, on an idle CPU);
     ``collect e4`` writes the summary rows and ``results/e4_speed.md`` (measured and quoted times kept apart).
+E5  cylinder at Ma 0.4, alpha 0 (where Prandtl-Glauert fails): 50x25 O-grid, PINN with and without positivity against
+    the 800x400 FVM, the non-lifting panel method (Ma 0.4 and Ma 0) and the FVM meshes.
 """
 
 from __future__ import annotations
@@ -174,6 +176,9 @@ def plan_commands(exp, runs_root=runs.RUNS, mode="nopos", mesh_dir=None, threads
     elif exp == "e3":
         paths = ensure_e3_meshes(mesh_dir)
         specs = e3_specs(runs_root, Path(paths["upstream"]).parent, rounds or E3_ROUNDS)
+    elif exp == "e5":
+        mesh = ensure_cylinder_mesh(mesh_dir)
+        specs = e5_specs(runs_root, Path(mesh).parent, rounds or E5_ROUNDS)
     else:
         raise SystemExit(f"unknown experiment {exp!r}")
     lines = []
@@ -614,16 +619,163 @@ def collect_e4(runs_root=runs.RUNS, summary="results/summary.csv", timing_path=N
     return rows
 
 
+# ---------------------------------------------------------------- E5: cylinder (Prandtl-Glauert fails on a bluff body)
+E5_ROUNDS = 10
+E5_MACH, E5_ALPHA = 0.4, 0
+E5_CASE = "Cylinder_a0"
+E5_N, E5_M = 50, 25
+E5_PANELS = 140
+REF_CYL = runs.FVM["Cylinder"]
+E5_FVM_MESHES = [("50x25", "50_25"), ("100x50", "100_50"), ("200x100", "200_100"), ("400x200", "400_200")]
+E5_REF_NOTE = ("Ma 0.4, alpha 0 quoted from arXiv 2401.08705 sec 3.1 (confirmed by the stagnation point at 180 deg and "
+               "its Cp 1.044); reference: FVM_Cp/Cylinder_800_400_Cp.dat")
+
+
+def cylinder_wall(n=E5_N):
+    """``n`` wall nodes of a circle of radius 0.5 centred at the origin (NNfoil frame): counter-clockwise from (0.5, 0)."""
+    t = np.linspace(0.0, 2.0 * np.pi, 4000, endpoint=False)
+    return ogrid.resample_closed(0.5 * np.cos(t), 0.5 * np.sin(t), n)
+
+
+def ensure_cylinder_mesh(out_dir=None, n=E5_N, m=E5_M, force=False) -> Path:
+    """``Cylinder_<n>_<m>.x``: O-grid (Winslow, cross coefficient 2) around the circle, written once and checked."""
+    out_dir = Path(out_dir) if out_dir is not None else RESULTS_MESH_DIR
+    out_dir.mkdir(parents=True, exist_ok=True)
+    path = out_dir / f"Cylinder_{n}_{m}.x"
+    if force or not path.exists():
+        xw, yw = cylinder_wall(n)
+        X, Y, iters, change = ogrid.ogrid(xw, yw, m, cross_coeff=2.0)
+        if not (ogrid.is_valid(X, Y) and change < 1e-5):
+            raise SystemExit(f"cylinder {n}x{m} O-grid is not valid (change {change:.2g} after {iters} iterations)")
+        ogrid.write_x(path, X, Y)
+    return path
+
+
+def e5_specs(runs_root=runs.RUNS, mesh_dir=None, rounds=E5_ROUNDS):
+    mesh_dir = Path(mesh_dir) if mesh_dir is not None else RESULTS_MESH_DIR
+    return [_spec(runs_root, shape="Cylinder", mesh_tag=f"{E5_N}_{E5_M}", mesh=f"{E5_N}x{E5_M}", alpha=E5_ALPHA,
+                  mach=E5_MACH, positivity=pos, rounds=rounds, mesh_file=_rel(mesh_dir / f"Cylinder_{E5_N}_{E5_M}.x"))
+            for pos in (True, False)]
+
+
+def panel_nonlifting(x, y, alpha_deg, mach) -> dict:
+    """Sources-only (no vortex, no Kutta) panel solution around a closed outline with a Prandtl-Glauert factor.
+
+    Same maths as ``aeronet.panel.solve_xy(..., lifting=False)`` of the Plan B branch (not merged into this branch, and
+    ``app/`` is not touched here): nodes counter-clockwise from the rightmost point, app frame, last node not repeated.
+    Returns ``{"cp","cx","cy","cl","cd","n"}`` with Cp at the panel centres.
+    """
+    from aeronet import panel
+
+    X, Y = np.asarray(x, dtype=float), np.asarray(y, dtype=float)
+    P = panel.panel_geometry(X, Y)
+    a = np.radians(alpha_deg)
+    vx_inf, vy_inf = np.cos(a), np.sin(a)
+    sx, sy, _, _ = panel.influence(P, P.cx, P.cy, self_diag=True)
+    nx, ny, tx, ty = P.nx[:, None], P.ny[:, None], P.tx[:, None], P.ty[:, None]
+    sigma = np.linalg.solve(sx * nx + sy * ny, -(vx_inf * P.nx + vy_inf * P.ny))
+    vt = vx_inf * P.tx + vy_inf * P.ty + (sx * tx + sy * ty) @ sigma
+    beta = float(np.sqrt(1.0 - mach * mach))
+    cp = (1.0 - vt**2) / beta
+    fx, fy = -np.sum(cp * P.nx * P.length), -np.sum(cp * P.ny * P.length)
+    return {"cp": cp, "cx": P.cx, "cy": P.cy, "cl": float(-fx * np.sin(a) + fy * np.cos(a)),
+            "cd": float(fx * np.cos(a) + fy * np.sin(a)), "n": int(P.n)}
+
+
+def cp_extremes(cp) -> dict:
+    """Lowest Cp (suction peak) and highest Cp (stagnation value) over the surface points given."""
+    cp = np.asarray(cp, dtype=float)
+    return {"cp_min": float(np.min(cp)), "cp_stag": float(np.max(cp))}
+
+
+def _ext_note(cp, what="surface points") -> str:
+    e = cp_extremes(cp)
+    return f"Cp_min={e['cp_min']:.3f}; Cp_stag={e['cp_stag']:.3f} (max Cp over the {what})"
+
+
+def e5_fvm_rows():
+    """FVM cylinder files: each coarse file against the 800x400 file, plus the reference itself (rms empty)."""
+    ref = metrics.load_fvm(REF_CYL)
+    rows = []
+    for label, tag in E5_FVM_MESHES:
+        path = FVM_DIR / f"Cylinder_{tag}_Cp.dat"
+        row = _fvm_row("E5", E5_CASE, label, E5_MACH, E5_ALPHA, path, REF_CYL,
+                       f"{_ext_note(metrics.load_fvm(path)[:, 2], 'FVM wall nodes')}; coarse FVM points used as the "
+                       f"prediction; {E5_REF_NOTE}", ref)
+        rows.append(row)
+    path = FVM_DIR / "Cylinder_800_400_Cp.dat"
+    cl, cd = metrics.fvm_forces(path, E5_ALPHA)
+    rows.append({"experiment": "E5", "case": E5_CASE, "method": "fvm", "mesh": "800x400", "mach": E5_MACH,
+                 "alpha_deg": E5_ALPHA, "rms_cp": None, "max_cp": None, "cl": _r(cl), "cl_ref": _r(cl), "cd": _r(cd),
+                 "train_s": None, "infer_ms": None, "source": "measured",
+                 "notes": f"the reference itself; {_ext_note(ref[:, 2], 'FVM wall nodes')}; {E5_REF_NOTE}"})
+    return rows
+
+
+def e5_panel_rows():
+    """Non-lifting panel method on the circle: Prandtl-Glauert at Ma 0.4, and the incompressible circle (Ma 0)."""
+    ref = metrics.load_fvm(REF_CYL)
+    cl_ref, _ = metrics.fvm_forces(REF_CYL, E5_ALPHA)
+    xw, yw = cylinder_wall(E5_PANELS)
+    x, y = xw + 0.5, yw
+    rows = []
+    for mach, mesh, what in [(E5_MACH, f"{E5_PANELS} panels",
+                              "Hess-Smith sources-only panel method with Prandtl-Glauert at Ma 0.4 (non-lifting)"),
+                             (0, f"{E5_PANELS} panels (Ma 0)",
+                              "incompressible circle: the same panel method at Ma 0; the exact potential flow is "
+                              "Cp = 1 - 4 sin^2(theta), Cp_min = -3 and Cp_stag = 1")]:
+        sol = panel_nonlifting(x, y, E5_ALPHA, mach)
+        err = metrics.cp_error(sol["cx"], sol["cy"], sol["cp"], ref)
+        rows.append({"experiment": "E5", "case": E5_CASE, "method": "panel", "mesh": mesh, "mach": mach,
+                     "alpha_deg": E5_ALPHA, "rms_cp": _r(err["rms"]), "max_cp": _r(err["max"]), "cl": _r(sol["cl"]),
+                     "cl_ref": _r(cl_ref), "cd": _r(sol["cd"]), "train_s": None, "infer_ms": None,
+                     "source": "measured",
+                     "notes": f"{what}; {_ext_note(sol['cp'], 'panel centres')}; {E5_REF_NOTE}"})
+    return rows
+
+
+def _cp_min_by_round(run) -> str:
+    return "Cp_min_by_round=" + ",".join(f"{float(np.min(r['cp'])):.2f}" for r in run["snapshots"]["rounds"])
+
+
+def collect_e5(runs_root=runs.RUNS, summary="results/summary.csv", rounds_dir=None):
+    """E5 rows: PINN (positivity on / off), the non-lifting panel method (Ma 0.4 and Ma 0) and the FVM cylinder meshes."""
+    runs_root = Path(runs_root)
+    rounds_dir = Path(rounds_dir) if rounds_dir is not None else ROOT / "results"
+    panel_rows = e5_panel_rows()
+    pg = next(r for r in panel_rows if r["mach"] == E5_MACH)
+    rows, traj = [], []
+    for s in e5_specs(runs_root):
+        if not _existing(s):
+            print(f"skip {s['name']}: no finished round", file=sys.stderr)
+            continue
+        run = runs.load_run(s["dir"])
+        _, _, cp_last = runs.final_surface(run)
+        extra = (f"E5: positivity {'on' if s['positivity'] else 'off'}; {_ext_note(cp_last, 'wall face centres')}; "
+                 f"{_cp_min_by_round(run)}; {E5_REF_NOTE}")
+        row, t = pinn_row(s["dir"], REF_CYL, "E5", extra=extra)
+        better = row["rms_cp"] < pg["rms_cp"]
+        row["notes"] += (f"; PINN RMS < panel+PG RMS: {'yes' if better else 'no'} ({row['rms_cp']:.4f} vs "
+                         f"{pg['rms_cp']:.4f}, final round)")
+        rows.append(row)
+        traj.extend(t)
+    rows += panel_rows + e5_fvm_rows()
+    for r in rows:
+        metrics.append_summary(r, summary)
+    _write_traj(rounds_dir / "e5_rounds.csv", traj)
+    return rows
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
     c = sub.add_parser("commands", help="print the training commands (runs nothing)")
-    c.add_argument("exp", choices=["e1", "e2", "e3"])
+    c.add_argument("exp", choices=["e1", "e2", "e3", "e5"])
     c.add_argument("--mode", choices=["nopos", "pos"], default="nopos", help="e2: positivity mode of the 200x100 chain")
     c.add_argument("--rounds", type=int, default=None, help="override the number of rounds (e1, e3)")
     c.add_argument("--threads", type=int, default=8)
     k = sub.add_parser("collect", help="finished run folders -> results/summary.csv rows")
-    k.add_argument("exp", choices=["e1", "e2", "e3", "e4"])
+    k.add_argument("exp", choices=["e1", "e2", "e3", "e4", "e5"])
     k.add_argument("--summary", default="results/summary.csv")
     a = ap.parse_args(sys.argv[1:] if argv is None else argv)
     if a.cmd == "commands":
@@ -635,7 +787,7 @@ def main(argv=None) -> int:
         if not lines:
             print(f"# nothing to run for {a.exp}", file=sys.stderr)
         return 0
-    rows = collect_e4(summary=a.summary) if a.exp == "e4" else collect(a.exp, summary=a.summary)
+    rows = {"e4": collect_e4, "e5": collect_e5}.get(a.exp, lambda **kw: collect(a.exp, **kw))(summary=a.summary)
     _print_rows(rows)
     extra = "results/e4_speed.md" if a.exp == "e4" else f"results/{a.exp}_rounds.csv"
     print(f"wrote {len(rows)} rows to {a.summary} and {extra}")
