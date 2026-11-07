@@ -84,7 +84,7 @@ def field_grid(sol: PanelSolution, width: int) -> dict:
     gx, gy = np.meshgrid(xs, ys)
     px, py = gx.ravel(), gy.ravel()
 
-    inside = inside_body(sol.airfoil.x, sol.airfoil.y, px, py)
+    inside = inside_body(sol.X, sol.Y, px, py)
     cp = np.full(px.size, np.nan)
     cp[~inside] = field_cp(sol, px[~inside], py[~inside], dtype=np.float32, workers=_WORKERS)
     values = np.round(cp, 3).astype(object)

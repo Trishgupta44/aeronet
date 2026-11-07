@@ -74,7 +74,6 @@ def solve(req: SolveRequest) -> SolveResponse:
 
     sol = solver.solve(req.code, req.alpha, req.mach, req.n_half)
     g = sol.geom
-    upper = g.cy >= sol.airfoil.camber(g.cx)
 
     comparison = None
     if req.reference:
@@ -88,9 +87,9 @@ def solve(req: SolveRequest) -> SolveResponse:
         alpha=req.alpha,
         mach=req.mach,
         n_panels=sol.n,
-        x=sol.airfoil.x.tolist(),
-        y=sol.airfoil.y.tolist(),
-        surface=SurfaceData(cx=g.cx.tolist(), cy=g.cy.tolist(), cp=sol.cp.tolist(), upper=upper.tolist()),
+        x=sol.X.tolist(),
+        y=sol.Y.tolist(),
+        surface=SurfaceData(cx=g.cx.tolist(), cy=g.cy.tolist(), cp=sol.cp.tolist(), upper=sol.upper.tolist()),
         cl=sol.cl,
         cd=sol.cd,
         cl_thin=thin_airfoil_cl(sol.airfoil, req.alpha, req.mach),
