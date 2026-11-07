@@ -9,6 +9,7 @@ import CardGrid from './components/CardGrid.jsx';
 import Hero from './components/Hero.jsx';
 import Section from './components/Section.jsx';
 import SiteFooter from './components/SiteFooter.jsx';
+import ShowdownCard from './components/ShowdownCard.jsx';
 import SiteHeader from './components/SiteHeader.jsx';
 import { DrawThumb, ExploreThumb, LabThumb, ResultsThumb } from './components/Thumbs.jsx';
 import { HEADLINE } from './data/headline.js';
@@ -264,7 +265,7 @@ export default function App() {
 
         <Section id="pinn" cls="hide-present" eyebrow="Neural solver" title="PINN Lab">
           <div className="results-stack">
-            <div className="placeholder">Trained cases appear here once the PINN runs are exported. Nothing is shown now on purpose: there is no fake data on this page.</div>
+            <ShowdownCard />
             <TrainingCard />
           </div>
         </Section>

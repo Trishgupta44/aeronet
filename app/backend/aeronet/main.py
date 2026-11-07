@@ -13,7 +13,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from . import __version__
+from . import __version__, pinn_data
 from .compare import compare_cp, compare_cp_nearest, parse_reference, thin_airfoil_cl
 from .field import field_grid
 from .geometry import naca4
@@ -162,6 +162,15 @@ def polar(req: PolarRequest) -> PolarResponse:
         sols = [solve_xy(X, Y, a, req.mach, lifting=req.lifting, ground=req.ground) for a in req.alphas]
         cl_thin = None
     return PolarResponse(alpha=req.alphas, cl=[s.cl for s in sols], cl_thin=cl_thin)
+
+
+@app.get("/api/showdown")
+def get_showdown() -> dict:
+    """Same-mesh showdown: FVM vs PINN on each mesh, both against the FVM 800x400 reference (read from results/)."""
+    try:
+        return pinn_data.showdown()
+    except (OSError, KeyError, ValueError) as e:
+        raise HTTPException(status_code=503, detail=f"PINN results are not available here: {e}")
 
 
 @app.get("/api/shapes", response_model=list[ShapePreset])
