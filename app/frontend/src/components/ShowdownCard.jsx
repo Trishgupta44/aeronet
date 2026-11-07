@@ -18,9 +18,27 @@ function strokeCurve(g, curve, X, Y, color, width, dash) {
   g.setLineDash([]);
 }
 
+// Shaded min-max band of the final-round Cp over the seeds (one polygon per surface).
+function fillBand(g, band, X, Y, color) {
+  g.save();
+  g.fillStyle = color;
+  g.globalAlpha = 0.2;
+  [true, false].forEach((side) => {
+    const idx = band.x.map((_, i) => i).filter((i) => band.upper[i] === side);
+    if (idx.length < 2) return;
+    g.beginPath();
+    idx.forEach((i, k) => (k ? g.lineTo(X(band.x[i]), Y(band.cp_max[i])) : g.moveTo(X(band.x[i]), Y(band.cp_max[i]))));
+    [...idx].reverse().forEach((i) => g.lineTo(X(band.x[i]), Y(band.cp_min[i])));
+    g.closePath();
+    g.fill();
+  });
+  g.restore();
+}
+
 function drawShowdown(g, w, h, reference, fvm, pinn) {
   const m = { l: 46, r: 14, t: 12, b: 34 };
-  const all = [...reference.cp, ...(fvm ? fvm.curve.cp : []), ...(pinn?.curve ? pinn.curve.cp : [])];
+  const band = pinn?.seeds?.band;
+  const all = [...reference.cp, ...(fvm ? fvm.curve.cp : []), ...(pinn?.curve ? pinn.curve.cp : []), ...(band ? [...band.cp_min, ...band.cp_max] : [])];
   const lo = Math.min(-1, Math.floor((Math.min(...all) - 0.1) * 2) / 2);
   const hi = Math.max(1.5, Math.ceil(Math.max(...all) * 2) / 2);
   const X = (x) => m.l + x * (w - m.l - m.r);
@@ -55,9 +73,51 @@ function drawShowdown(g, w, h, reference, fvm, pinn) {
   g.fillText('Cp (suction is up)', 0, 0);
   g.restore();
 
+  if (band) fillBand(g, band, X, Y, cssVar('--up'));
   strokeCurve(g, reference, X, Y, cssVar('--ref'), 1.4);
   if (fvm) strokeCurve(g, fvm.curve, X, Y, cssVar('--lo'), 1.8, [6, 4]);
   if (pinn?.curve) strokeCurve(g, pinn.curve, X, Y, cssVar('--up'), 2);
+}
+
+const range = (r, d) => (r ? `${r.min.toFixed(d)} to ${r.max.toFixed(d)}` : '–');
+
+// Facts only, no traffic light. Every line carries its source.
+// TODO: the off-grid residual (a reference-free check for late-round drift) is deliberately NOT shown yet: it is exploratory
+// (one point per run, mixed meshes). See docs/nnfoil_improvements.md, section 3c, on the main checkout.
+function Evidence({ pinn, mesh, mach }) {
+  const s = pinn.seeds;
+  const v = pinn.validity;
+  return (
+    <div className="evidence">
+      <h3>Evidence for this result</h3>
+      <ul className="plain">
+        <li>
+          <span className="tag tag--measured">measured</span> <b>Run:</b> {mesh.replace('x', '×')} mesh, {pinn.rounds ?? '?'} rounds, {pinn.failed_rounds ?? '?'} failed
+          rounds, {pinn.train_s != null ? `${pinn.train_s.toFixed(0)} s training` : `training time withheld (${pinn.train_s_note ?? 'no time recorded'})`}{' '}
+          (results/summary.csv, run {pinn.run_id}).
+        </li>
+        <li>
+          <span className="tag tag--measured">measured</span> <b>Seed spread:</b>{' '}
+          {s ? (
+            <>
+              n = {s.n} seeds{s.n_without_result > 0 && <>, {s.n_without_result} without a result (collapsed or failed)</>}. Cl {range(s.cl, 3)}, Cp RMS{' '}
+              {range(s.rms, 4)} ({s.source}). {s.rounds_differ && 'The seeds were trained for different numbers of rounds. '}
+              {s.band && <>Shaded band: lowest and highest Cp at each wall point over the {s.band.n_curves} seeds that gave a result.</>}
+            </>
+          ) : (
+            'no seed-to-seed data for this variant, so no spread is claimed.'
+          )}
+        </li>
+        <li>
+          <span className="tag tag--measured">computed</span> <b>Validity:</b> the PINN's lowest wall Cp is {v.cp_min.toFixed(2)}; the sonic value at Mach {mach} is{' '}
+          {v.cp_crit.toFixed(2)}. {v.supersonic ? 'The flow reaches Mach 1 locally, so the subsonic model is not valid.' : 'The flow stays subsonic, so the subsonic model applies.'}
+        </li>
+        <li>
+          <b>Scope:</b> inviscid Euler flow (no boundary layer or separation). Drag is not predicted. Cars and other bluff bodies are only idealized flow, never real drag.
+        </li>
+      </ul>
+    </div>
+  );
 }
 
 function Block({ title, rms, max, cl, extra, tag }) {
@@ -134,6 +194,7 @@ function ShowdownBody({ data }) {
         <span><i style={{ background: 'var(--ref)' }} />{data.reference.label} (reference)</span>
         {entry.fvm && <span><i style={{ background: 'var(--lo)' }} />FVM {mesh.replace('x', '×')}</span>}
         {ready && <span><i style={{ background: 'var(--up)' }} />PINN {mesh.replace('x', '×')}, final round</span>}
+        {ready && pinn.seeds?.band && <span><i style={{ background: 'var(--up)', opacity: 0.25, borderRadius: 0 }} />min-max over {pinn.seeds.band.n_curves} seeds</span>}
       </div>
       <div className="metrics">
         {entry.fvm ? <Block title={`FVM ${mesh.replace('x', '×')}`} {...entry.fvm} tag="measured" /> : <div className="placeholder">No FVM row for this mesh.</div>}
@@ -141,7 +202,7 @@ function ShowdownBody({ data }) {
           <Block
             title={pinn.label}
             {...pinn}
-            extra={`${pinn.train_s != null ? `${pinn.train_s.toFixed(0)} s training · ` : ''}${pinn.rounds ?? '?'} rounds, ${pinn.failed_rounds ?? '?'} failed`}
+            extra={`${pinn.train_s != null ? `${pinn.train_s.toFixed(0)} s training · ` : 'training time withheld · '}${pinn.rounds ?? '?'} rounds, ${pinn.failed_rounds ?? '?'} failed`}
             tag="measured"
           />
         )}
@@ -162,10 +223,11 @@ function ShowdownBody({ data }) {
           finite-volume error (computed from the two measured numbers above).
         </div>
       )}
+      {ready && <Evidence pinn={pinn} mesh={mesh} mach={data.case.mach} />}
       <p className="src">
         Source: results/summary.csv (experiments B0 and E2) and the final-round Cp of each run; the final round is used, never the best round (choosing it would use the reference answer).
         Error = {data.error_definition}.
-        {mesh === '50x25' && ' On 50×25 the PINN drifts in late rounds: its error was lowest around rounds 3 to 7 and rose afterwards (docs/nnfoil_improvements.md, section 3c).'}
+        {mesh === '50x25' && ' On 50×25 the PINN drifts in late rounds: its error was lowest around rounds 3 to 7 and rose afterwards (measured, in docs/nnfoil_improvements.md, section 3c).'}
       </p>
     </section>
   );

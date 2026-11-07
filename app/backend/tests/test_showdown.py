@@ -58,6 +58,41 @@ def test_numbers_come_from_the_summary_and_the_final_round(fake):
     assert sum(p["curve"]["upper"]) == 5
 
 
+def test_seed_spread_comes_from_seed_check_and_collapsed_seeds_count_but_give_no_range(fake):
+    head = "mode,method,seed,run_id,cl_after_transfer,final_cl,cp_rms,rounds,failed_rounds,seconds,collapsed,complete\n"
+    (fake / "seed_check.csv").write_text(
+        head
+        + "pos,cold,0,naca0012_100x50_a4_m04,,0.516286,0.014451,20,0,577.6,no,yes\n"
+        + "pos,cold,1,naca0012_100x50_a4_m04_s1,,0.506552,0.015379,5,0,324.6,no,yes\n"
+        + "pos,cold,2,naca0012_100x50_a4_m04_s2,,,,0,5,,yes,yes\n"
+        + "pos,gs,0,some_other_run,0.4,0.5,0.0161,4,0,120.0,no,yes\n"  # other variant: must not leak into the pinn spread
+    )
+    s1 = fake / "runs" / "naca0012_100x50_a4_m04_s1"
+    s1.mkdir()
+    x = np.linspace(0.05, 0.95, 10).tolist()
+    (s1 / "snapshots.json").write_text(json.dumps({"x": x, "y": [0.03] * 5 + [-0.03] * 5, "rounds": [{"round": 5, "cp": [0.3] * 10}]}))
+    p = next(m for m in pinn_data.showdown()["meshes"] if m["mesh"] == "100x50")["pinn"][0]
+    s = p["seeds"]
+    assert s["source"] == "results/seed_check.csv" and s["n"] == 3 and s["n_with_result"] == 2 and s["n_without_result"] == 1
+    assert s["cl"] == {"min": 0.506552, "max": 0.516286} and s["rms"] == {"min": 0.014451, "max": 0.015379}
+    assert s["rounds_differ"] is True
+    assert s["band"]["n_curves"] == 2 and s["band"]["cp_min"] == [0.1] * 10 and s["band"]["cp_max"] == [0.3] * 10
+    assert p["validity"]["supersonic"] is False and p["validity"]["cp_crit"] < -3
+
+
+def test_note_parsing_handles_both_note_formats():
+    assert pinn_data._first_int("rounds=19; failed_rounds=1", "failed_rounds", "restarts") == 1
+    assert pinn_data._first_int("rounds=19/20; seed=0; restarts=2; nan_rounds=0", "failed_rounds", "restarts") == 2
+    assert pinn_data._first_int("rounds=20", "failed_rounds", "restarts") is None
+    assert pinn_data._withheld_note("a; train_s withheld: the laptop slept during this run; b") == "the laptop slept during this run"
+    assert pinn_data._withheld_note("nothing here") is None
+
+
+def test_no_seed_data_means_no_spread_is_claimed(fake):
+    p = next(m for m in pinn_data.showdown()["meshes"] if m["mesh"] == "100x50")["pinn"][0]
+    assert p["seeds"] is None
+
+
 def test_run_without_a_summary_row_is_pending_and_has_no_curve(fake):
     d = pinn_data.showdown()
     p = next(m for m in d["meshes"] if m["mesh"] == "200x100")["pinn"][0]

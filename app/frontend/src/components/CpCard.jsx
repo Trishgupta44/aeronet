@@ -78,6 +78,23 @@ function drawCp(g, w, h, result, reference, pinned) {
       g.stroke();
     });
   }
+  // Three annotations computed from the current curve (see keyPoints).
+  const kp = keyPoints(s);
+  [[kp.stagnation, 'stagnation', 8, 4, 'left'], [kp.peak, 'suction peak', 8, -9, 'left'], [kp.trailing, 'trailing edge', -8, -9, 'right']].forEach(([p, label, dx, dy, align]) => {
+    if (!p) return;
+    g.strokeStyle = cssVar('--ink');
+    g.lineWidth = 1.6;
+    g.beginPath();
+    g.arc(X(p.x), Y(p.cp), 5, 0, 6.2832);
+    g.stroke();
+    g.font = '11px system-ui';
+    g.textAlign = align;
+    g.lineWidth = 3;
+    g.strokeStyle = cssVar('--plot-bg');
+    g.strokeText(label, X(p.x) + dx, Y(p.cp) + dy);
+    g.fillStyle = cssVar('--ink');
+    g.fillText(label, X(p.x) + dx, Y(p.cp) + dy);
+  });
   // Cp* (where the local flow becomes sonic): dashed line, drawn only when it falls inside the plot range.
   const star = result.validity?.cp_crit;
   if (star != null && star >= lo && star <= hi) {
@@ -95,7 +112,41 @@ function drawCp(g, w, h, result, reference, pinned) {
   }
 }
 
-const f2 = (v) => (v == null ? '–' : v.toFixed(2));
+/**
+ * Stagnation point (highest Cp), suction peak (lowest Cp) and trailing edge (mean Cp of the two surface points with the largest x),
+ * all read from the surface Cp of the current solution; nothing is assumed about the shape.
+ */
+export function keyPoints(s) {
+  const pts = s.cx.map((x, i) => ({ x, cp: s.cp[i], up: s.upper[i] }));
+  if (!pts.length) return {};
+  const stagnation = pts.reduce((a, b) => (b.cp > a.cp ? b : a));
+  const peak = pts.reduce((a, b) => (b.cp < a.cp ? b : a));
+  const ends = [true, false].map((side) => pts.filter((p) => p.up === side)).filter((arr) => arr.length).map((arr) => arr.reduce((a, b) => (b.x > a.x ? b : a)));
+  const trailing = ends.length ? { x: Math.max(...ends.map((p) => p.x)), cp: ends.reduce((sum, p) => sum + p.cp, 0) / ends.length } : null;
+  return { stagnation, peak, trailing };
+}
+
+const f2 = (v) => (v == null ?'–' : v.toFixed(2));
+
+/** The three annotated points as text (same numbers as the markers), plus the inviscid caveat for cars on a road. */
+function KeyPointsNote({ result }) {
+  const { stagnation, peak, trailing } = keyPoints(result.surface);
+  if (!stagnation) return null;
+  return (
+    <div className="keypoints">
+      <p className="hint">
+        <span className="tag tag--measured">computed</span> From this curve: stagnation point Cp {f2(stagnation.cp)} at x/c {f2(stagnation.x)}; suction peak Cp{' '}
+        {f2(peak.cp)} at x/c {f2(peak.x)}; trailing edge Cp {f2(trailing?.cp)}.
+      </p>
+      {result.ground_y != null && (
+        <p className="hint">
+          <b>Idealized flow:</b> a car on a road in inviscid potential flow. There is no separation or wake, so the pressure at the rear is not
+          realistic and no drag value is shown.
+        </p>
+      )}
+    </div>
+  );
+}
 
 /** Validity of the inviscid subsonic model, from the panel solution (all numbers computed by the backend). */
 function ValidityNote({ validity, mach }) {
@@ -138,6 +189,7 @@ export default function CpCard({ result, reference, pinned = null, idp = '' }) {
         {pinned && <span><i style={{ background: 'transparent', border: '1.5px dashed var(--muted)' }} />pinned: {pinned.label}</span>}
         {result?.validity?.cp_crit != null && <span><i style={{ background: 'var(--flow-stagnation)', borderRadius: 0, height: 2, verticalAlign: 3 }} />sonic Cp* (dashed)</span>}
       </div>
+      {result && <KeyPointsNote result={result} />}
       {result && <ValidityNote validity={result.validity} mach={result.mach} />}
       <div className="status" id={`${idp}cmpStatus`} role="status">
         {c && c.rms !== null && (
