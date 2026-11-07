@@ -3,7 +3,16 @@
 *Updated 2026-11-06 by the main session. Read `docs/AeroNet_v2_Design_Report.md` for the why and
 `docs/superpowers/plans/2026-11-05-aeronet-v2-roadmap.md` for the interfaces.*
 
-## Done and merged to `main`
+## Merge state (2026-11-08)
+- `main` = Plan A + Plan B (demo v2, Milestone 2) + the 7 extra demo features from the improvements session
+  (`features-v3`: showdown, critical-Mach warning, NeuralFoil viscous check, evidence card, tradeoff chart,
+  offline fallback, critical-Mach optimiser). Fast-forwarded locally (head `cbdab0c`), tests 114 backend and
+  48 frontend, NOT pushed. Worktrees `../Aero-Net-planB` and `../Aero-Net-features` can be removed
+  (`git worktree remove <path>`) once nobody needs them; the branches stay.
+- `plan-c-pinn-results` (this branch) is NOT merged into `main`. Merging it later: expect the showdown's stopgap
+  loader `app/backend/aeronet/pinn_data.py` to be replaced by Plan C's PINN-case export (C6-C8).
+
+## Done and merged to `main` (Plan A)
 - **Plan A (NNfoil verified on CPU), Milestone 1 complete.** Report: `docs/milestones/M1-nnfoil-verified.md`.
   Seed check: `results/seed_check.csv`. 63 tests: `research/.venv/Scripts/python -m pytest research/tests -q`.
 
