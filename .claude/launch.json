@@ -4,8 +4,28 @@
     {
       "name": "aeronet-prototype",
       "runtimeExecutable": "python",
-      "runtimeArgs": ["-m", "http.server", "8765", "--directory", "prototype"],
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8765",
+        "--directory",
+        "prototype"
+      ],
       "port": 8765
+    },
+    {
+      "name": "aeronet-app",
+      "runtimeExecutable": "app/backend/.venv/Scripts/python.exe",
+      "runtimeArgs": [
+        "-m",
+        "uvicorn",
+        "aeronet.main:app",
+        "--port",
+        "8000",
+        "--app-dir",
+        "app/backend"
+      ],
+      "port": 8000
     }
   ]
 }
