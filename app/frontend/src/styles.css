@@ -288,3 +288,8 @@ ul.plain li { margin: 4px 0; }
   :root:not([data-theme="light"]) .msg--err { color: #ff9b8a; }
   :root:not([data-theme="light"]) .msg--warn, :root:not([data-theme="light"]) .pill--note { background: #3a2f12; color: #f2d58a; border-color: #6b5420; }
 }
+
+/* phone hero: scale the flow window so the whole airfoil (x from 0 to 1 of 1.8) fits the screen, and sit it above the headline */
+@media (max-width: 560px) {
+  .hero-flow { width: 164%; top: 36%; -webkit-mask-image: linear-gradient(0deg, transparent, #000 28%, #000 72%, transparent); mask-image: linear-gradient(0deg, transparent, #000 28%, #000 72%, transparent); }
+}

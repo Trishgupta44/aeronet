@@ -10,6 +10,9 @@ export const NAV = [
   { id: 'about', label: 'About' },
 ];
 
+// Sections that are not in the nav still end the previous nav section: below them nothing is highlighted.
+const SPY_IDS = [...NAV.map((n) => n.id), 'overview', 'credit'];
+
 function useScrollState() {
   const [state, setState] = useState({ stuck: false, active: null });
   useEffect(() => {
@@ -17,9 +20,9 @@ function useScrollState() {
     const read = () => {
       raf = 0;
       const y = window.scrollY;
-      const offsets = NAV.map((n) => {
-        const el = document.getElementById(n.id);
-        return el ? { id: n.id, top: el.getBoundingClientRect().top + y } : null;
+      const offsets = SPY_IDS.map((id) => {
+        const el = document.getElementById(id);
+        return el ? { id, top: el.getBoundingClientRect().top + y } : null;
       }).filter(Boolean);
       const next = { stuck: y > 64, active: activeSection(offsets, y) };
       setState((s) => (s.stuck === next.stuck && s.active === next.active ? s : next));
@@ -71,7 +74,6 @@ export default function SiteHeader() {
           <div className="container utility-in">
             <span>Prototype · inviscid · subsonic · screening tool</span>
             <nav aria-label="Utility">
-              <a href="#about">About</a>
               <a href="#credit">Credit</a>
             </nav>
           </div>

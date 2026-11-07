@@ -36,6 +36,7 @@ export function respawn(p, f, rand, fromLeft) {
   p.py = y;
   p.age = 0;
   p.life = LIFE_MIN + rand() * LIFE_SPAN;
+  p.sp = 1; // local speed (free stream = 1), used to tint the trail
   return p;
 }
 
@@ -70,6 +71,7 @@ export function stepParticles(ps, f, dt, rand) {
     p.py = p.y;
     p.x += dt * v2[0];
     p.y += dt * v2[1];
+    p.sp = Math.hypot(v2[0], v2[1]);
     p.age += 1;
     if (p.age >= p.life) respawn(p, f, rand, false);
     else if (!sampleVelocity(f, p.x, p.y)) respawn(p, f, rand, true);

@@ -192,20 +192,55 @@ function drawBase(g, w, h, result, layers, hero) {
   g.fillText('FREESTREAM', ax - 8, ay + 30);
 }
 
-function drawTrails(g, ps, f, w, h) {
+// Trails: one thin stroke per particle, tinted by local speed. Slow air is pale, fast air is deep.
+const SPEED_BINS = 8;
+const SPEED_LO = 0.85;
+const SPEED_HI = 1.5;
+const PALETTES = {
+  // on the pale colour map: pale blue-grey -> deep navy/indigo
+  light: { slow: [150, 166, 196, 0.5], fast: [22, 18, 112, 0.95] },
+  // on the dark hero (or a dark plot): blue-white -> white
+  dark: { slow: [176, 196, 240, 0.28], fast: [255, 255, 255, 0.85] },
+};
+const trailStyle = (palette, bin) => {
+  const f = bin / (SPEED_BINS - 1);
+  const a = palette.slow;
+  const b = palette.fast;
+  return [0, 1, 2, 3].map((i) => a[i] + f * (b[i] - a[i]));
+};
+
+/** Is the picture behind the particles dark? (the hero, or the plain plot background in dark mode) */
+function darkBackdrop(hero, fieldOn) {
+  if (hero) return true;
+  if (fieldOn) return false;
+  const m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(cssVar('--plot-bg'));
+  return !!m && (0.299 * parseInt(m[1], 16) + 0.587 * parseInt(m[2], 16) + 0.114 * parseInt(m[3], 16)) < 110;
+}
+
+/** Draw the latest step of every particle as a 1.15 px round-capped segment; `strength` scales the alpha (still pictures use it for a smooth fade). */
+function drawTrails(g, ps, f, w, h, dark, strength = 1) {
   const X = (x) => ((x - f.xmin) / (f.xmax - f.xmin)) * w;
   const Y = (y) => ((f.ymax - y) / (f.ymax - f.ymin)) * h;
+  const palette = dark ? PALETTES.dark : PALETTES.light;
+  const bins = Array.from({ length: SPEED_BINS }, () => []);
+  for (const p of ps) {
+    if (p.px === p.x && p.py === p.y) continue;
+    const bin = Math.max(0, Math.min(SPEED_BINS - 1, Math.floor(((p.sp - SPEED_LO) / (SPEED_HI - SPEED_LO)) * SPEED_BINS)));
+    bins[bin].push(p);
+  }
   g.lineCap = 'round';
-  for (const [width, color] of [[1.9, 'rgba(10,14,22,.25)'], [1, 'rgba(255,255,255,.9)']]) {
+  g.lineWidth = 1.15;
+  bins.forEach((list, bin) => {
+    if (!list.length) return;
+    const [r, gr, b, a] = trailStyle(palette, bin);
+    g.strokeStyle = `rgba(${r | 0},${gr | 0},${b | 0},${(a * strength).toFixed(3)})`;
     g.beginPath();
-    for (const p of ps) {
+    for (const p of list) {
       g.moveTo(X(p.px), Y(p.py));
       g.lineTo(X(p.x), Y(p.y));
     }
-    g.lineWidth = width;
-    g.strokeStyle = color;
     g.stroke();
-  }
+  });
 }
 
 /**
@@ -244,7 +279,7 @@ export function FlowStage({ result, layers, paused, hero = false, onProbe, idp =
     const rand = randRef.current;
     const target = () => {
       const { w: cw, h: ch } = sizeRef.current;
-      return Math.max(200, Math.min(hero ? 1000 : 1400, Math.round(cw * ch * 0.0019 * (hero ? 0.6 : 1))));
+      return Math.max(100, Math.min(hero ? 500 : 700, Math.round(cw * ch * 0.00095 * (hero ? 0.6 : 1))));
     };
     const ensure = () => {
       const f = fieldRef.current;
@@ -259,13 +294,15 @@ export function FlowStage({ result, layers, paused, hero = false, onProbe, idp =
       g.clearRect(0, 0, w, h);
       ensure();
       const f = fieldRef.current;
+      const dark = darkBackdrop(hero, layers.field);
       for (let k = 0; k < 24; k++) {
         stepParticles(particlesRef.current, f, DT * 1.5, rand);
-        drawTrails(g, particlesRef.current, f, w, h);
+        drawTrails(g, particlesRef.current, f, w, h, dark, (k + 1) / 24);
       }
       return undefined;
     }
 
+    const dark = darkBackdrop(hero, layers.field);
     let raf = 0;
     let last = performance.now();
     let ema = 0;
@@ -285,17 +322,17 @@ export function FlowStage({ result, layers, paused, hero = false, onProbe, idp =
       ensure();
       stepParticles(particlesRef.current, f, DT * k, rand);
       g.globalCompositeOperation = 'destination-out';
-      g.fillStyle = `rgba(0,0,0,${Math.min(0.25, 0.085 * k)})`;
+      g.fillStyle = `rgba(0,0,0,${Math.min(0.3, 0.1 * k)})`; // exponential fade: each trail dims smoothly along its length
       g.fillRect(0, 0, w, h);
       g.globalCompositeOperation = 'source-over';
-      drawTrails(g, particlesRef.current, f, w, h);
+      drawTrails(g, particlesRef.current, f, w, h, dark);
     };
     raf = requestAnimationFrame(frame);
     return () => {
       cancelAnimationFrame(raf);
       io?.disconnect();
     };
-  }, [size, hasField, layers.particles, paused, hero]);
+  }, [size, hasField, layers.particles, layers.field, paused, hero]);
 
   const handle = (e) => {
     if (!onProbe) return;

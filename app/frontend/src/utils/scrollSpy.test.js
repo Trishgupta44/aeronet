@@ -22,4 +22,9 @@ describe('activeSection', () => {
   it('does not depend on the order of the offsets', () => {
     expect(activeSection([...offsets].reverse(), 1650)).toBe('draw');
   });
+  it('returns a non-nav section (the cards band) once the reader is in it, so the nav can highlight nothing', () => {
+    const withBand = [...offsets, { id: 'overview', top: 2300 }];
+    expect(activeSection(withBand, 2250)).toBe('overview');
+    expect(activeSection(withBand, 2900)).toBe('results');
+  });
 });
