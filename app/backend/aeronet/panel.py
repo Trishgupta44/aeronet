@@ -74,6 +74,20 @@ def influence(P: PanelGeometry, px: np.ndarray, py: np.ndarray, self_diag: bool 
     )
 
 
+def influence_with_ground(P: PanelGeometry, px, py, ground_y: float | None, self_diag: bool = False):
+    """``influence`` plus the image flow of a flat road at height ``ground_y`` (method of images).
+
+    Reflecting the whole flow in the road line gives the image flow, whose velocity at (x, y) is
+    (u, -v) of the real flow at the mirrored point (x, 2g - y); the road then has zero normal velocity.
+    This holds for sources and for vortices alike (a reflected vortex reverses its circulation).
+    """
+    sx, sy, vx, vy = influence(P, px, py, self_diag=self_diag)
+    if ground_y is None:
+        return sx, sy, vx, vy
+    mx, my, mvx, mvy = influence(P, px, 2.0 * ground_y - py)  # real panels seen from the mirrored point
+    return sx + mx, sy - my, vx + mvx, vy - mvy  # image flow = (u, -v) at the mirror point
+
+
 @dataclass(frozen=True)
 class PanelSolution:
     airfoil: Airfoil | None  # None for drawn shapes
@@ -116,15 +130,21 @@ def solve_xy(
     t0 = perf_counter()
     X = np.asarray(X, dtype=float)
     Y = np.asarray(Y, dtype=float)
-    if ground is not None:
-        raise NotImplementedError("ground effect is added in task B2")
+    upper = np.arange(X.size) < int(np.argmin(X))  # panels between the trailing edge and the leading-edge node
     flow = np.radians(alpha_deg)  # freestream angle
     ground_y = None
+    if ground is not None:
+        # The freestream must be parallel to the road: tilt the body nose-up about the quarter chord instead.
+        c, s = np.cos(-flow), np.sin(-flow)
+        dx = X - 0.25
+        X, Y = 0.25 + dx * c - Y * s, dx * s + Y * c
+        ground_y = float(Y.min() - ground)
+        flow = 0.0
     P = panel_geometry(X, Y)
     N = P.n
     vx_inf, vy_inf = np.cos(flow), np.sin(flow)
 
-    sx, sy, vx, vy = influence(P, P.cx, P.cy, self_diag=True)
+    sx, sy, vx, vy = influence_with_ground(P, P.cx, P.cy, ground_y, self_diag=True)
     nx, ny, tx, ty = P.nx[:, None], P.ny[:, None], P.tx[:, None], P.ty[:, None]
     normal_s = sx * nx + sy * ny
     normal_v = vx * nx + vy * ny
@@ -156,7 +176,6 @@ def solve_xy(
     cl = float(-fx * np.sin(flow) + fy * np.cos(flow))
     cd = float(fx * np.cos(flow) + fy * np.sin(flow))  # ideal value 0 (d'Alembert)
 
-    upper = np.arange(N) < int(np.argmin(X))
     ms = (perf_counter() - t0) * 1000.0
     return PanelSolution(
         airfoil, P, sigma, gamma, cp, cl, cd, beta, alpha_deg, float(vx_inf), float(vy_inf), ms, X, Y, upper, ground_y
