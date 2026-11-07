@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from .geometry import validate_code
 
@@ -90,6 +90,37 @@ class ShapeInfo(BaseModel):
 class ShapeSolveResponse(SolveResponse):
     shape: ShapeInfo
     warnings: list[str] = []
+
+
+class PolarRequest(BaseModel):
+    code: str | None = Field(None, description="NACA 4-digit code")
+    points: list[tuple[float, float]] | None = Field(None, min_length=8, max_length=4000, description="Closed outline (x, y)")
+    alphas: list[float] = Field(..., min_length=1, max_length=61, description="Angles of attack in degrees")
+    mach: float = Field(0.0, ge=0.0, le=0.7)
+    lifting: bool = True
+    ground: float | None = Field(None, ge=0.02, le=1.0, description="Gap to the road, in chords")
+    n_panels: int = Field(160, ge=40, le=400)
+
+    @field_validator("alphas")
+    @classmethod
+    def _check_alphas(cls, v: list[float]) -> list[float]:
+        if any(not -20 <= a <= 20 for a in v):
+            raise ValueError("Every angle must be between -20 and 20 degrees.")
+        return v
+
+    @model_validator(mode="after")
+    def _one_of_code_or_points(self):
+        if (self.code is None) == (self.points is None):
+            raise ValueError("Give exactly one of 'code' or 'points'.")
+        if self.code is not None:
+            validate_code(self.code)
+        return self
+
+
+class PolarResponse(BaseModel):
+    alpha: list[float]
+    cl: list[float]
+    cl_thin: list[float] | None = None
 
 
 class ParseRequest(BaseModel):

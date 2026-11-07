@@ -16,13 +16,16 @@ from fastapi.staticfiles import StaticFiles
 from . import __version__
 from .compare import compare_cp, compare_cp_nearest, parse_reference, thin_airfoil_cl
 from .field import field_grid
-from .panel import PanelSolution, solve_xy
+from .geometry import naca4
+from .panel import PanelSolution, solve as panel_solve, solve_xy
 from .shapes import prepare_shape
 from .schemas import (
     AirfoilPreset,
     Comparison,
     FieldData,
     ParseRequest,
+    PolarRequest,
+    PolarResponse,
     ReferenceData,
     ShapeInfo,
     ShapeSolveRequest,
@@ -135,6 +138,26 @@ def solve_shape(req: ShapeSolveRequest) -> ShapeSolveResponse:
         warnings=warnings,
         **_response_fields(sol, req.grid_width, comparison, t0),
     )
+
+
+@app.post("/api/polar", response_model=PolarResponse)
+def polar(req: PolarRequest) -> PolarResponse:
+    """Cl for a list of angles of attack (no field is computed)."""
+    if req.code is not None:
+        if req.ground is None and req.lifting:
+            sols = [panel_solve(req.code, a, req.mach, req.n_panels // 2) for a in req.alphas]
+        else:  # road and/or no Kutta condition: same NACA nodes through the generic solver
+            af = naca4(req.code, req.n_panels // 2)
+            sols = [solve_xy(af.x, af.y, a, req.mach, lifting=req.lifting, ground=req.ground, airfoil=af) for a in req.alphas]
+        cl_thin = [thin_airfoil_cl(s.airfoil, a, req.mach) for s, a in zip(sols, req.alphas)]
+    else:
+        try:
+            X, Y, _, _ = prepare_shape(req.points, n=req.n_panels, lifting=req.lifting)
+        except ValueError as e:
+            raise HTTPException(status_code=422, detail=str(e))
+        sols = [solve_xy(X, Y, a, req.mach, lifting=req.lifting, ground=req.ground) for a in req.alphas]
+        cl_thin = None
+    return PolarResponse(alpha=req.alphas, cl=[s.cl for s in sols], cl_thin=cl_thin)
 
 
 @app.post("/api/reference/parse", response_model=ReferenceData)

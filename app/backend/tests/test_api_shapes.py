@@ -84,3 +84,42 @@ def test_velocity_is_consistent_with_cp():
     for c, u, v in zip(f["cp"], f["u"], f["v"]):
         if c is not None:
             assert abs(c - (1 - u * u - v * v)) < 0.01  # rounding of the three values to 3 decimals
+
+
+# ---- B5: /api/polar ----
+
+def test_polar_for_a_naca_code():
+    r = client.post("/api/polar", json={"code": "2412", "alphas": [-4, 0, 4, 8], "mach": 0})
+    assert r.status_code == 200
+    d = r.json()
+    assert d["alpha"] == [-4, 0, 4, 8]
+    assert d["cl"] == sorted(d["cl"]) and len(set(d["cl"])) == 4
+    assert abs(d["cl"][1] - 0.2555) < 2e-3
+    assert len(d["cl_thin"]) == 4 and all(isinstance(v, float) for v in d["cl_thin"])
+
+
+def test_polar_for_points_has_no_thin_airfoil_values():
+    d = client.post("/api/polar", json={"points": circle(), "alphas": [0, 5], "lifting": False}).json()
+    assert d["cl_thin"] is None and max(abs(c) for c in d["cl"]) < 1e-6
+
+
+def test_polar_with_ground_uses_the_road():
+    free = client.post("/api/polar", json={"code": "0012", "alphas": [4]}).json()["cl"][0]
+    near = client.post("/api/polar", json={"code": "0012", "alphas": [4], "ground": 0.05}).json()["cl"][0]
+    assert abs(near - free) > 0.02
+
+
+def test_polar_validation():
+    assert client.post("/api/polar", json={"alphas": [0]}).status_code == 422  # neither code nor points
+    assert client.post("/api/polar", json={"code": "0012", "points": circle(), "alphas": [0]}).status_code == 422
+    assert client.post("/api/polar", json={"code": "0012", "alphas": [30]}).status_code == 422
+    assert client.post("/api/polar", json={"code": "0012", "alphas": [-10 + 0.25 * i for i in range(62)]}).status_code == 422
+    assert client.post("/api/polar", json={"code": "0012", "alphas": []}).status_code == 422
+    assert client.post("/api/polar", json={"code": "0003", "alphas": [0]}).status_code == 422
+    r = client.post("/api/polar", json={"points": eight(), "alphas": [0]})
+    assert r.status_code == 422 and "crosses itself" in r.json()["detail"]
+
+
+def test_polar_accepts_61_angles():
+    r = client.post("/api/polar", json={"code": "0012", "alphas": [-10 + 0.25 * i for i in range(61)]})
+    assert r.status_code == 200 and len(r.json()["cl"]) == 61
