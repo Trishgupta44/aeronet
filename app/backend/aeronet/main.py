@@ -13,7 +13,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from . import __version__, compressibility, neural, pinn_data
+from . import __version__, compressibility, neural, pinn_data, tradeoff
 from .compare import compare_cp, compare_cp_nearest, parse_reference, thin_airfoil_cl
 from .field import field_grid
 from .geometry import naca4
@@ -174,6 +174,15 @@ def solve_viscous(req: ViscousRequest) -> dict:
     if not neural.available():
         raise HTTPException(status_code=503, detail="NeuralFoil is not installed on this server (pip install -r requirements-viscous.txt).")
     return neural.viscous(req.code, req.alpha, req.re, req.model_size)
+
+
+@app.get("/api/tradeoff")
+def get_tradeoff() -> dict:
+    """Accuracy (Cp RMS vs FVM 800x400) against cost (seconds on this laptop) for panel, PINN and FVM (read from results/)."""
+    try:
+        return tradeoff.tradeoff()
+    except (OSError, KeyError, ValueError) as e:
+        raise HTTPException(status_code=503, detail=f"Trade-off data is not available here: {e}")
 
 
 @app.get("/api/showdown")

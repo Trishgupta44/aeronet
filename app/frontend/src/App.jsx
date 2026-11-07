@@ -10,6 +10,7 @@ import Hero from './components/Hero.jsx';
 import Section from './components/Section.jsx';
 import SiteFooter from './components/SiteFooter.jsx';
 import ShowdownCard from './components/ShowdownCard.jsx';
+import TradeoffCard from './components/TradeoffCard.jsx';
 import ViscousCard from './components/ViscousCard.jsx';
 import SiteHeader from './components/SiteHeader.jsx';
 import { DrawThumb, ExploreThumb, LabThumb, ResultsThumb } from './components/Thumbs.jsx';
@@ -278,6 +279,7 @@ export default function App() {
 
         <Section id="results" cls="hide-present" eyebrow="Evidence" title="Results">
           <div className="results-stack">
+            <TradeoffCard />
             <ComparisonCard result={result} />
             <PipelineCard />
           </div>

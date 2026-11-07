@@ -36,6 +36,19 @@ def _scalar(result: dict, key: str) -> float:
     return float(np.asarray(result[key]).ravel()[0])
 
 
+def time_call_ms(code: str = "0012", alpha: float = 4.0, re: float = 1.0e6, model_size: str = "large") -> float:
+    """Mean wall time of one NeuralFoil call on this server, after one warm-up call."""
+    if _nf is None:
+        raise RuntimeError("NeuralFoil is not installed")
+    af = naca4(code, 70)
+    xy = np.c_[af.x, af.y]
+    _nf.get_aero_from_coordinates(xy, alpha=alpha, Re=re, model_size=model_size)
+    t0 = perf_counter()
+    for _ in range(_TIMING_CALLS):
+        _nf.get_aero_from_coordinates(xy, alpha=alpha, Re=re, model_size=model_size)
+    return (perf_counter() - t0) / _TIMING_CALLS * 1000.0
+
+
 def viscous(code: str, alpha: float, re: float, model_size: str = "large") -> dict:
     """NeuralFoil Cl, Cd, Cm, transition and confidence for NACA ``code`` at ``alpha`` degrees and Reynolds number ``re``,
     a Cl/Cd polar over -6..14 degrees, the inviscid panel result for comparison, and the measured time per NeuralFoil call.
