@@ -91,9 +91,13 @@ def field_cp(sol: PanelSolution, px: np.ndarray, py: np.ndarray, dtype=np.float6
 
 
 def field_grid(sol: PanelSolution, width: int) -> dict:
-    """Cp on a ``width`` x ``round(width / 1.8)`` grid of cell centres, ``None`` inside the body.
+    """Cp, u and v on a ``width`` x ``round(width / 1.8)`` grid of cell centres.
 
-    Values are row-major, first row at the top (y = YMAX), matching how the canvas is drawn.
+    Cells inside the body, and below the road when there is one, are ``None``. Values are row-major,
+    first row at the top (y = YMAX), matching how the canvas is drawn.
+
+    ``u`` and ``v`` are the incompressible velocity components in units of the free-stream speed;
+    ``cp`` includes the Prandtl-Glauert factor: cp = (1 - u^2 - v^2) / beta. All three are rounded to 3 decimals.
     """
     height = max(1, round(width / 1.8))
     xs = XMIN + (np.arange(width) + 0.5) / width * (XMAX - XMIN)
@@ -101,11 +105,20 @@ def field_grid(sol: PanelSolution, width: int) -> dict:
     gx, gy = np.meshgrid(xs, ys)
     px, py = gx.ravel(), gy.ravel()
 
-    inside = inside_body(sol.X, sol.Y, px, py)
-    cp = np.full(px.size, np.nan)
-    cp[~inside] = field_cp(sol, px[~inside], py[~inside], dtype=np.float32, workers=_WORKERS)
-    values = np.round(cp, 3).astype(object)
-    values[np.isnan(cp)] = None
+    blocked = inside_body(sol.X, sol.Y, px, py)
+    if sol.ground_y is not None:
+        blocked |= py < sol.ground_y
+    free = ~blocked
+    u = np.full(px.size, np.nan)
+    v = np.full(px.size, np.nan)
+    u[free], v[free] = field_uv(sol, px[free], py[free], dtype=np.float32, workers=_WORKERS)
+    cp = (1.0 - (u * u + v * v)) / sol.beta
+
+    def out(a):
+        values = np.round(a, 3).astype(object)
+        values[np.isnan(a)] = None
+        return values.tolist()
+
     return {
         "width": int(width),
         "height": int(height),
@@ -113,5 +126,7 @@ def field_grid(sol: PanelSolution, width: int) -> dict:
         "xmax": XMAX,
         "ymin": YMIN,
         "ymax": YMAX,
-        "cp": values.tolist(),
+        "cp": out(cp),
+        "u": out(u),
+        "v": out(v),
     }

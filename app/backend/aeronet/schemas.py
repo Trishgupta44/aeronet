@@ -39,6 +39,8 @@ class FieldData(BaseModel):
     ymin: float
     ymax: float
     cp: list[float | None]
+    u: list[float | None]
+    v: list[float | None]
 
 
 class Comparison(BaseModel):

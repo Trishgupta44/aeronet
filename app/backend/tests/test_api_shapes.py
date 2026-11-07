@@ -63,3 +63,24 @@ def test_solve_shape_compares_with_a_reference_by_nearest_point():
     pts = client.post("/api/solve", json={"code": "0012", "alpha": 4, "mach": 0.4, "n_half": 100}).json()
     d = post_shape(points=list(zip(pts["x"], pts["y"])), alpha=4, mach=0.4, lifting=True, reference=ref, grid_width=0).json()
     assert d["comparison"]["n"] == 162 and d["comparison"]["rms"] < 0.06
+
+
+# ---- B4: velocity components in the field ----
+
+def test_solve_has_u_and_v_in_the_field():
+    f = client.post("/api/solve", json={"code": "0012", "alpha": 4, "mach": 0.4, "grid_width": 60}).json()["field"]
+    n = f["width"] * f["height"]
+    assert len(f["u"]) == n and len(f["v"]) == n and len(f["cp"]) == n
+
+
+def test_masks_agree_between_cp_u_and_v():
+    f = post_shape().json()["field"]
+    assert [c is None for c in f["cp"]] == [u is None for u in f["u"]] == [v is None for v in f["v"]]
+    assert any(c is None for c in f["cp"])
+
+
+def test_velocity_is_consistent_with_cp():
+    f = post_shape(mach=0.0).json()["field"]
+    for c, u, v in zip(f["cp"], f["u"], f["v"]):
+        if c is not None:
+            assert abs(c - (1 - u * u - v * v)) < 0.01  # rounding of the three values to 3 decimals

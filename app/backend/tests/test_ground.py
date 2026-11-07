@@ -69,3 +69,17 @@ def test_ground_effect_reference_numbers():
 
 def test_no_ground_keeps_the_old_behaviour():
     assert solve("0012", 4, 0).ground_y is None
+
+
+def test_field_grid_masks_everything_below_the_road():
+    from aeronet.field import field_grid
+
+    s = solve_xy(*ELLIPSE, 0.0, 0.0, lifting=False, ground=0.1)
+    g = field_grid(s, 90)
+    w, h = g["width"], g["height"]
+    ys = g["ymax"] - (np.arange(h) + 0.5) / h * (g["ymax"] - g["ymin"])
+    for key in ("cp", "u", "v"):
+        rows = np.array(g[key], dtype=object).reshape(h, w)
+        assert all(v is None for v in rows[ys < s.ground_y].ravel())
+        high = rows[ys > 0.3].ravel()
+        assert high.size and all(v is not None and np.isfinite(v) for v in high)
