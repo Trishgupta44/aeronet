@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { getAirfoils, getSampleReference, getSolvers, parseReference } from './api.js';
 import { AirfoilCard, FlowCard, ReferenceCard, SolverCard } from './components/ControlCards.jsx';
 import CpCard from './components/CpCard.jsx';
-import FieldCard from './components/FieldCard.jsx';
+import FlowCanvas, { DEFAULT_LAYERS, FlowStage, HERO_LAYERS, prefersReducedMotion } from './components/FlowCanvas.jsx';
 import { ComparisonCard, PipelineCard, ResultsCard, TrainingCard } from './components/InfoCards.jsx';
 import CardGrid from './components/CardGrid.jsx';
 import Hero from './components/Hero.jsx';
@@ -39,6 +39,8 @@ export default function App() {
   const [mach, setMach] = useState(0.4);
   const [reference, setReference] = useState(null);
   const [refStatus, setRefStatus] = useState({ kind: '', text: '' });
+  const [layers, setLayers] = useState(DEFAULT_LAYERS);
+  const [paused, setPaused] = useState(prefersReducedMotion);
 
   const { result, error } = useSolve({ solver, code, alpha, mach, reference });
 
@@ -104,7 +106,13 @@ export default function App() {
   return (
     <>
       <SiteHeader />
-      <Hero />
+      <Hero caption={result ? `Live: panel-method flow around NACA ${result.code} at ${result.alpha}°, the case selected below` : undefined}>
+        {result && (
+          <div className="hero-flow">
+            <FlowStage result={result} layers={HERO_LAYERS} paused={paused} hero />
+          </div>
+        )}
+      </Hero>
       <main>
         <Section
           id="about"
@@ -167,7 +175,7 @@ export default function App() {
               <ReferenceCard status={refStatus} onLoadSample={loadSample} onClear={onClear} onFile={onFile} />
             </aside>
             <div className="stack">
-              <FieldCard result={result} />
+              <FlowCanvas result={result} layers={layers} onLayersChange={setLayers} paused={paused} onPausedChange={setPaused} />
               <ResultsCard result={result} />
               <CpCard result={result} reference={reference} />
             </div>

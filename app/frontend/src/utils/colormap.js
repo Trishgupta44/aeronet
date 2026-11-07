@@ -1,12 +1,15 @@
-// Diverging colour map for Cp: suction (negative) blue, freestream neutral, stagnation red.
+// Perceptual diverging colour map for Cp (RdBu-like): suction (negative) blue, freestream near-white, stagnation red.
 export const CP_MIN = -2;
 export const CP_MAX = 1;
 export const STOPS = [
-  [-2, [26, 63, 156]],
-  [-1, [79, 134, 217]],
-  [0, [244, 243, 238]],
-  [0.5, [240, 160, 90]],
-  [1, [194, 59, 34]],
+  [-2, [23, 37, 99]],
+  [-1.4, [33, 84, 160]],
+  [-0.8, [67, 147, 195]],
+  [-0.3, [166, 206, 227]],
+  [0, [247, 247, 244]],
+  [0.35, [253, 204, 138]],
+  [0.7, [227, 105, 70]],
+  [1, [165, 15, 38]],
 ];
 
 /** Map a Cp value to [r, g, b]; values outside [-2, 1] are clamped. */
@@ -25,6 +28,6 @@ export function cmap(v) {
 
 /** CSS linear-gradient string matching the colour map (used for the colour bar). */
 export function gradientCss() {
-  const parts = STOPS.map((s, i) => `rgb(${s[1].join(',')}) ${(i / (STOPS.length - 1)) * 100}%`);
+  const parts = STOPS.map((s) => `rgb(${s[1].join(',')}) ${((s[0] - CP_MIN) / (CP_MAX - CP_MIN)) * 100}%`);
   return `linear-gradient(90deg,${parts.join(',')})`;
 }
