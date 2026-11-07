@@ -46,6 +46,7 @@ export const getSampleReference = () => request('/api/reference/sample');
 export const parseReference = (text, name) => request('/api/reference/parse', { method: 'POST', body: JSON.stringify({ text, name }) });
 export const getShowdown = () => request('/api/showdown');
 export const getTradeoff = () => request('/api/tradeoff');
+export const optimizeShape = (body) => request('/api/optimize', { method: 'POST', body: JSON.stringify(body) });
 export const getViscous = (body, signal) => request('/api/viscous', { method: 'POST', body: JSON.stringify(body), signal });
 export const solve = (body, signal) => request('/api/solve', { method: 'POST', body: JSON.stringify(body), signal });
 export const solveShape = (body, signal) => request('/api/solve_shape', { method: 'POST', body: JSON.stringify(body), signal });

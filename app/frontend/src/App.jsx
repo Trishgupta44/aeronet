@@ -10,6 +10,7 @@ import Hero from './components/Hero.jsx';
 import Section from './components/Section.jsx';
 import SiteFooter from './components/SiteFooter.jsx';
 import BackendBanner from './components/BackendBanner.jsx';
+import OptimizeCard from './components/OptimizeCard.jsx';
 import ShowdownCard from './components/ShowdownCard.jsx';
 import TradeoffCard from './components/TradeoffCard.jsx';
 import ViscousCard from './components/ViscousCard.jsx';
@@ -257,6 +258,7 @@ export default function App() {
             </aside>
             <div className="stack">
               <CaseView caseName={`NACA ${code}`} polarSource={{ code, mach }} result={result} reference={reference} layers={layers} onLayersChange={setLayers} paused={paused} onPausedChange={setPaused} />
+              <OptimizeCard code={code} />
               <ViscousCard code={code} alpha={alpha} /> {/* NACA airfoils only: hide this for cars, bluff bodies and drawn shapes */}
             </div>
           </div>

@@ -135,6 +135,17 @@ class PolarResponse(BaseModel):
     cl_thin: list[float] | None = None
 
 
+class OptimizeRequest(BaseModel):
+    target_cl: float = Field(0.6, ge=0.0, le=1.5, description="Lift coefficient the design must give")
+    min_thickness: float = Field(0.09, ge=0.06, le=0.15, description="Smallest allowed thickness, fraction of chord")
+    code: str = Field("0012", description="NACA 4-digit airfoil to compare against")
+
+    @field_validator("code")
+    @classmethod
+    def _check_code(cls, v: str) -> str:
+        return validate_code(v)
+
+
 class ViscousRequest(BaseModel):
     code: str = Field(..., description="NACA 4-digit code (airfoils only)")
     alpha: float = Field(4.0, ge=-20, le=20, description="Angle of attack in degrees")

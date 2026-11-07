@@ -13,7 +13,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from . import __version__, compressibility, neural, pinn_data, tradeoff
+from . import __version__, compressibility, neural, optimize, pinn_data, tradeoff
 from .compare import compare_cp, compare_cp_nearest, parse_reference, thin_airfoil_cl
 from .field import field_grid
 from .geometry import naca4
@@ -36,6 +36,7 @@ from .schemas import (
     SolveResponse,
     SolverInfo,
     SurfaceData,
+    OptimizeRequest,
     Validity,
     ViscousRequest,
     ViscousResponse,
@@ -174,6 +175,12 @@ def solve_viscous(req: ViscousRequest) -> dict:
     if not neural.available():
         raise HTTPException(status_code=503, detail="NeuralFoil is not installed on this server (pip install -r requirements-viscous.txt).")
     return neural.viscous(req.code, req.alpha, req.re, req.model_size)
+
+
+@app.post("/api/optimize")
+def optimize_shape(req: OptimizeRequest) -> dict:
+    """Shape a NACA 4-digit-family airfoil for the least suction at the target Cl (raises the critical Mach number). Inviscid."""
+    return optimize.optimise(req.target_cl, req.min_thickness, req.code)
 
 
 @app.get("/api/tradeoff")
