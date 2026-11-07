@@ -135,6 +135,51 @@ class PolarResponse(BaseModel):
     cl_thin: list[float] | None = None
 
 
+class ViscousRequest(BaseModel):
+    code: str = Field(..., description="NACA 4-digit code (airfoils only)")
+    alpha: float = Field(4.0, ge=-20, le=20, description="Angle of attack in degrees")
+    re: float = Field(1.0e6, ge=1.0e4, le=1.0e8, description="Chord Reynolds number")
+    model_size: str = Field("large", pattern="^(xxsmall|xsmall|small|medium|large|xlarge|xxlarge|xxxlarge)$")
+
+    @field_validator("code")
+    @classmethod
+    def _check_code(cls, v: str) -> str:
+        return validate_code(v)
+
+
+class ViscousPolar(BaseModel):
+    alpha: list[float]
+    cl: list[float]
+    cd: list[float]
+    confidence: list[float]
+    cl_inviscid: list[float] = Field(..., description="Panel-method Cl (Mach 0) at the same angles")
+
+
+class ViscousInviscid(BaseModel):
+    cl: float
+    cd: float
+    mach: float
+
+
+class ViscousResponse(BaseModel):
+    label: str
+    version: str | None
+    model_size: str
+    code: str
+    alpha: float
+    re: float
+    cl: float
+    cd: float
+    cm: float
+    cl_cd: float | None
+    confidence: float = Field(..., description="NeuralFoil's own analysis_confidence, 0 to 1")
+    top_xtr: float
+    bot_xtr: float
+    call_ms: float = Field(..., description="Measured mean time of one NeuralFoil call on the server")
+    inviscid: ViscousInviscid
+    polar: ViscousPolar
+
+
 class ParseRequest(BaseModel):
     text: str = Field(..., max_length=2_000_000)
     name: str = "uploaded file"

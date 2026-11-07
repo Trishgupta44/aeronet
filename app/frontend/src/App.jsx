@@ -10,6 +10,7 @@ import Hero from './components/Hero.jsx';
 import Section from './components/Section.jsx';
 import SiteFooter from './components/SiteFooter.jsx';
 import ShowdownCard from './components/ShowdownCard.jsx';
+import ViscousCard from './components/ViscousCard.jsx';
 import SiteHeader from './components/SiteHeader.jsx';
 import { DrawThumb, ExploreThumb, LabThumb, ResultsThumb } from './components/Thumbs.jsx';
 import { HEADLINE } from './data/headline.js';
@@ -253,6 +254,7 @@ export default function App() {
             </aside>
             <div className="stack">
               <CaseView caseName={`NACA ${code}`} polarSource={{ code, mach }} result={result} reference={reference} layers={layers} onLayersChange={setLayers} paused={paused} onPausedChange={setPaused} />
+              <ViscousCard code={code} alpha={alpha} /> {/* NACA airfoils only: hide this for cars, bluff bodies and drawn shapes */}
             </div>
           </div>
         </Section>

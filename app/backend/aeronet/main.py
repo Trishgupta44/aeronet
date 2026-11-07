@@ -13,7 +13,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from . import __version__, compressibility, pinn_data
+from . import __version__, compressibility, neural, pinn_data
 from .compare import compare_cp, compare_cp_nearest, parse_reference, thin_airfoil_cl
 from .field import field_grid
 from .geometry import naca4
@@ -37,6 +37,8 @@ from .schemas import (
     SolverInfo,
     SurfaceData,
     Validity,
+    ViscousRequest,
+    ViscousResponse,
 )
 from .solvers import PRESETS, SOLVERS, get_solver
 
@@ -164,6 +166,14 @@ def polar(req: PolarRequest) -> PolarResponse:
         sols = [solve_xy(X, Y, a, req.mach, lifting=req.lifting, ground=req.ground) for a in req.alphas]
         cl_thin = None
     return PolarResponse(alpha=req.alphas, cl=[s.cl for s in sols], cl_thin=cl_thin)
+
+
+@app.post("/api/viscous", response_model=ViscousResponse)
+def solve_viscous(req: ViscousRequest) -> dict:
+    """NeuralFoil viscous Cl/Cd for a NACA airfoil, next to the inviscid panel result (optional dependency)."""
+    if not neural.available():
+        raise HTTPException(status_code=503, detail="NeuralFoil is not installed on this server (pip install -r requirements-viscous.txt).")
+    return neural.viscous(req.code, req.alpha, req.re, req.model_size)
 
 
 @app.get("/api/showdown")
