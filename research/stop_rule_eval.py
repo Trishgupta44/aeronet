@@ -399,19 +399,27 @@ def new_run_summary_rows(runs_root=runs.RUNS, rows=None):
     return out
 
 
-def online_summary_row(runs_root=runs.RUNS, predicted=None):
-    """E6 ``pinn_stoprule_online`` row of the run trained with ``--stop-rule plateau`` (numbers at its last round)."""
+def online_summary_row(runs_root=runs.RUNS, name=ONLINE_RUN, replay_rows=None):
+    """E6 ``pinn_stoprule_online`` row of a run trained with ``--stop-rule plateau`` (numbers at its last round).
+
+    The replay prediction is taken from the finished full run of the same seed and mode (``name`` without ``_online``).
+    """
     import experiments as ex
 
-    d = Path(runs_root) / ONLINE_RUN
+    d = Path(runs_root) / name
     log = json.loads((d / "log.json").read_text(encoding="utf8"))
+    cfg = json.loads((d / "config.json").read_text(encoding="utf8"))
     stop = log.get("stop")
+    base = name[:-len("_online")]
+    pred_row = next((r for r in (replay_rows or []) if r["run_id"] == base), None)
+    predicted = "unknown" if pred_row is None else ("never (no stop within the planned rounds)" if pred_row["stop_round"] is None else f"round {pred_row['stop_round']}")
+    where = (f"stopped by the rule at round {stop['round']}" if stop else f"the rule did not trigger ({len(log['round'])} rounds logged)")
     row, _ = ex.pinn_row(d, runs.FVM["NACA0012"], "E6", case=None, extra="")
-    row["method"] = "pinn_stoprule_online"
-    where = (f"stopped by the rule at round {stop['round']}" if stop else "the rule did not trigger within the planned rounds")
-    row["notes"] = (f"online confirmation: trained with --stop-rule plateau --diagnostics (seed 3, positivity on, new folder {ONLINE_RUN}); "
-                    f"{where}; replay of the earlier full run predicted round {predicted}; thresholds dCl 0.002, dCp 0.005, window 2; "
-                    f"held-out; numbers are the last round; " + row["notes"])
+    pos = bool(cfg.get("positivity", True))
+    row["method"] = "pinn_stoprule_online" if pos else "pinn_nopos_stoprule_online"
+    row["notes"] = (f"online confirmation: trained with --stop-rule plateau --diagnostics (seed {cfg.get('seed', 0)}, positivity "
+                    f"{'on' if pos else 'off'}, new folder {name}); {where}; replay of the full run {base} predicted {predicted}; "
+                    f"thresholds dCl 0.002, dCp 0.005, window 2; held-out; numbers are the last round; " + row["notes"])
     return row
 
 
@@ -428,8 +436,8 @@ def main(argv=None) -> int:
         if name == "replay":
             p.add_argument("--summary", action="store_true", help="also write the E6 rows to results/summary.csv")
         if name == "new-runs":
-            p.add_argument("--online", action="store_true", help="also add the online-confirmation row")
-            p.add_argument("--predicted", type=int, default=None, help="stop round predicted by the replay of the full run")
+            p.add_argument("--online", nargs="*", default=None, metavar="RUN",
+                           help="also add online-confirmation rows for these run folders (default: the seed-3 run)")
     a = ap.parse_args(argv)
     rows = evaluate_all(a.runs, a.exclude)
     if a.cmd == "replay":
@@ -448,8 +456,9 @@ def main(argv=None) -> int:
             print(f"{n} rows (E6, pinn_stoprule_replay) -> {a.summary_path}")
     elif a.cmd == "new-runs":
         out = new_run_summary_rows(a.runs, rows)
-        if a.online:
-            out.append(online_summary_row(a.runs, a.predicted))
+        if a.online is not None:
+            for name in (a.online or [ONLINE_RUN]):
+                out.append(online_summary_row(a.runs, name, rows))
         for row in out:
             metrics.append_summary(row, a.summary_path)
             print(f"{row['case']:16s} {row['method']:22s} rms {row['rms_cp']} cl {row['cl']} train_s {row['train_s']}")

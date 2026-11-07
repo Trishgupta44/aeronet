@@ -235,3 +235,20 @@ def test_write_replay_csv_and_markdown_tables(tmp_path):
     s = sre.sensitivity(rows)
     assert s[0]["dcl"] == 0.002 and s[0]["held_n"] == 2 and s[0]["held_stopped"] == 1 and s[0]["dev_n"] == 0
     assert "| 0.002 | 0.005 | 2 |" in sre.sensitivity_md(rows)
+
+
+def test_online_summary_row_compares_with_the_replay_prediction(tmp_path):
+    root = tmp_path / "runs"
+    root.mkdir()
+    ref = runs.FVM["NACA0012"]
+    make_run(root, "naca0012_50x25_a4_m04_s3_e6", SETTLE_OFF, SETTLE_CL, ref=ref, seed=3)
+    d = make_run(root, "naca0012_50x25_a4_m04_s3_e6_online", SETTLE_OFF[:5], SETTLE_CL[:5], ref=ref, seed=3, stop_rule="plateau")
+    log = json.loads((d / "log.json").read_text())
+    log["stop"] = {"rule": "plateau (dCl<0.002, dCp<0.005, 2 rounds)", "round": 5}
+    (d / "log.json").write_text(json.dumps(log))
+    rows = sre.evaluate_all(root)
+    assert [r["run_id"] for r in rows] == ["naca0012_50x25_a4_m04_s3_e6"]  # the online run has a stop rule: never replayed
+    row = sre.online_summary_row(root, "naca0012_50x25_a4_m04_s3_e6_online", rows)
+    assert row["method"] == "pinn_stoprule_online" and row["case"] == "NACA0012_a4_s3" and row["experiment"] == "E6"
+    assert "stopped by the rule at round 5" in row["notes"] and "predicted round 5" in row["notes"]
+    assert row["rms_cp"] == pytest.approx(0.0285, abs=1e-4)
