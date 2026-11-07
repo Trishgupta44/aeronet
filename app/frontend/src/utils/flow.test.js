@@ -4,6 +4,7 @@ import { ISO_LEVELS, isoLines, isoSegments } from './contours.js';
 import { sampleField, sampleVelocity, toGrid, toWorld } from './field.js';
 import { createParticles, mulberry32, respawn, stepParticles } from './particles.js';
 import { autoClose, chaikin, mirrorClosed, processStroke, surfaceCsv, thin, toDat } from './outline.js';
+import { readState, writeState } from './urlState.js';
 
 // 18 x 10 grid in the app window: cp = x at every cell centre, uniform flow u = 1, v = 0. `holes` lists [i, j] cells to null.
 function fixture(holes = []) {
@@ -178,5 +179,26 @@ describe('outline helpers', () => {
   it('surfaceCsv writes x, y, cp and an upper flag', () => {
     const r = { surface: { cx: [0.5], cy: [0.1], cp: [-0.3], upper: [true] } };
     expect(surfaceCsv(r)).toBe('x,y,cp,upper\n0.500000,0.100000,-0.300000,1\n');
+  });
+});
+
+describe('url state', () => {
+  it('round-trips the explore state and keeps unrelated flags', () => {
+    const s = { tab: 'explore', code: '2412', alpha: 6, mach: 0.3, shape: '', lifting: true, ground: '' };
+    const search = writeState('?present', s);
+    expect(new URLSearchParams(search).has('present')).toBe(true);
+    expect(readState(search)).toEqual(s);
+  });
+  it('round-trips the draw state (library shapes are stored by id)', () => {
+    const s = { tab: 'draw', code: '0012', alpha: 0, mach: 0, shape: 'sedan', lifting: false, ground: 0.03 };
+    expect(readState(writeState('', s))).toEqual(s);
+  });
+  it('sanitises hostile or out-of-range input', () => {
+    expect(readState('?tab=evil&code=12&alpha=99&mach=-1&shape=<x>&ground=9')).toEqual({ tab: 'explore', code: '0012', alpha: 12, mach: 0, shape: 'x', ground: 1 });
+  });
+  it('replaces earlier values instead of appending', () => {
+    const once = writeState('?light&alpha=3', { tab: 'explore', code: '0012', alpha: 5, mach: 0.4, shape: '', ground: '' });
+    expect(new URLSearchParams(once).getAll('alpha')).toEqual(['5']);
+    expect(new URLSearchParams(once).has('light')).toBe(true);
   });
 });

@@ -152,6 +152,8 @@ export default function DrawSection({ layers, onLayersChange, paused, onPausedCh
     mach,
   };
 
+  const polarSource = cur ? { points: cur.points, lifting: cur.lifting, ground: cur.groundOn ? cur.gap : null, mach } : null;
+
   const shown = msg ?? (error ? { kind: 'err', text: error } : null);
   const status = (
     <div className="padstatus" role="status">
@@ -170,7 +172,7 @@ export default function DrawSection({ layers, onLayersChange, paused, onPausedCh
         <DrawPad shapes={shapes} value={value} onChange={onChange} onUndo={undo} onClear={clear} canUndo={hist.undo.length > 0}
           onImport={onImport} onExport={onExport} canExport={!!cur} />
       </aside>
-      <CaseView idp="d-" result={result} reference={null} layers={layers} onLayersChange={onLayersChange} paused={paused} onPausedChange={onPausedChange} status={status}>
+      <CaseView idp="d-" caseName={cur?.name ?? 'Shape'} polarSource={polarSource} result={result} reference={null} layers={layers} onLayersChange={onLayersChange} paused={paused} onPausedChange={onPausedChange} status={status}>
         <PenLayer armed={pen.armed} mirror={pen.mirror} hint={cur ? '' : 'DRAW A CLOSED SHAPE HERE'} onStroke={onStroke} />
       </CaseView>
     </div>

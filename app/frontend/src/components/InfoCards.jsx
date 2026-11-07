@@ -1,14 +1,29 @@
 // Results, speed/accuracy table, training-history placeholder and the project pipeline card.
 
-export function ResultsCard({ result, idp = '' }) {
+const fmt = (v, d) => (Math.abs(v) < 0.5 * 10 ** -d ? 0 : v).toFixed(d); // no "-0.000"
+
+export function ResultsCard({ result, idp = '', pinned = null, onPin, onUnpin, onPng, onCsv }) {
   const dash = '–';
   const custom = result?.code === 'custom';
   const noDrag = result?.ground_y != null; // a car on a road: inviscid flow has no drag, so no number is shown
   return (
     <section className="card">
-      <h2>Results</h2>
+      <div className="card-head">
+        <h2>Results</h2>
+        {onPin && (
+          <div className="actions" role="group" aria-label="Pin and export">
+            {pinned ? (
+              <button type="button" className="btn" onClick={onUnpin}>Unpin</button>
+            ) : (
+              <button type="button" className="btn" onClick={onPin} disabled={!result}>Pin result</button>
+            )}
+            <button type="button" className="btn" onClick={onPng} disabled={!result}>Download PNG</button>
+            <button type="button" className="btn" onClick={onCsv} disabled={!result}>Download CSV</button>
+          </div>
+        )}
+      </div>
       <div className="metrics">
-        <div className="metric"><div className="k">Lift coefficient Cl</div><div className="v" id={`${idp}mCl`}>{result ? result.cl.toFixed(3) : dash}</div><div className="n">from surface pressure</div></div>
+        <div className="metric"><div className="k">Lift coefficient Cl</div><div className="v" id={`${idp}mCl`}>{result ? fmt(result.cl, 3) : dash}</div><div className="n">from surface pressure</div></div>
         <div className="metric">
           <div className="k">Thin-airfoil theory</div>
           <div className="v" id={`${idp}mThin`}>{result && result.cl_thin != null ? result.cl_thin.toFixed(3) : custom ? 'n/a' : dash}</div>
@@ -16,11 +31,16 @@ export function ResultsCard({ result, idp = '' }) {
         </div>
         <div className="metric">
           <div className="k">Drag Cd {noDrag ? '' : '(error only)'}</div>
-          <div className="v" id={`${idp}mCd`}>{result ? (noDrag ? 'not shown' : result.cd.toFixed(4)) : dash}</div>
+          <div className="v" id={`${idp}mCd`}>{result ? (noDrag ? 'not shown' : fmt(result.cd, 4)) : dash}</div>
           <div className="n">{noDrag ? 'inviscid flow has no drag' : 'ideal value is 0'}</div>
         </div>
         <div className="metric"><div className="k">Solve time</div><div className="v" id={`${idp}mMs`}>{result ? `${result.solve_ms.toFixed(1)} ms` : dash}</div><div className="n">measured on the server</div></div>
       </div>
+      {pinned && result && (
+        <p className="delta" id={`${idp}delta`}>
+          Pinned: <b>{pinned.label}</b>, Cl {pinned.cl.toFixed(3)}. Now: Cl {result.cl.toFixed(3)}, so <b>ΔCl = {(result.cl - pinned.cl >= 0 ? '+' : '−') + Math.abs(result.cl - pinned.cl).toFixed(3)}</b>.
+        </p>
+      )}
     </section>
   );
 }

@@ -59,7 +59,7 @@ function signedArea(xs, ys) {
   return s / 2;
 }
 
-function drawBase(g, w, h, result, layers, hero) {
+function drawBase(g, w, h, result, layers, hero, ghost) {
   if (hero) g.clearRect(0, 0, w, h);
   else {
     g.fillStyle = layers.field ? '#f7f7f4' : cssVar('--plot-bg');
@@ -154,6 +154,19 @@ function drawBase(g, w, h, result, layers, hero) {
 
   if (hero) return;
 
+  if (ghost) {
+    // the pinned shape as a dashed outline, so a change of shape or angle can be compared at a glance
+    g.save();
+    g.setLineDash([6, 4]);
+    g.strokeStyle = '#0b1020';
+    g.lineWidth = 1.4;
+    g.beginPath();
+    ghost.x.forEach((x, i) => (i ? g.lineTo(px(x), py(ghost.y[i])) : g.moveTo(px(x), py(ghost.y[i]))));
+    g.closePath();
+    g.stroke();
+    g.restore();
+  }
+
   if (layers.forces) {
     const ccw = signedArea(result.x, result.y) > 0;
     const s = result.surface;
@@ -189,7 +202,7 @@ function drawBase(g, w, h, result, layers, hero) {
   arrow(g, ax, ay, ax + L * Math.cos(a), ay - L * Math.sin(a), '#20242c', false);
   g.font = '500 11px "IBM Plex Mono", monospace';
   g.fillStyle = '#20242c';
-  g.fillText('FREESTREAM', ax - 8, ay + 30);
+  if (w >= 500) g.fillText('FREESTREAM', ax - 8, ay + 30); // no room for the word on a phone
 }
 
 // Trails: one thin stroke per particle, tinted by local speed. Slow air is pale, fast air is deep.
@@ -247,7 +260,7 @@ function drawTrails(g, ps, f, w, h, dark, strength = 1) {
  * The layered picture: a base canvas (colour map, isobars, road, body, forces) and an overlay canvas with the animated
  * particles. `onProbe` (panel use only) receives pointer events over the field.
  */
-export function FlowStage({ result, layers, paused, hero = false, onProbe, idp = '' }) {
+export function FlowStage({ result, layers, paused, hero = false, onProbe, idp = '', ghost = null, stageRef = null }) {
   const baseRef = useRef(null);
   const overlayRef = useRef(null);
   const fieldRef = useRef(null);
@@ -259,12 +272,30 @@ export function FlowStage({ result, layers, paused, hero = false, onProbe, idp =
 
   const [size, setSize] = useState({ w: 0, h: 0 });
   const getHeight = (w) => Math.round(w / ASPECT);
-  useCanvasDraw(baseRef, getHeight, (g, w, h) => drawBase(g, w, h, result, layers, hero), [result, layers.field, layers.isobars, layers.forces, hero]);
+  useCanvasDraw(baseRef, getHeight, (g, w, h) => drawBase(g, w, h, result, layers, hero, ghost), [result, layers.field, layers.isobars, layers.forces, hero, ghost]);
   useCanvasDraw(overlayRef, getHeight, (g, w, h) => {
     sizeRef.current = { w, h };
     g.clearRect(0, 0, w, h);
     setSize({ w, h });
   }, []);
+
+  if (stageRef) {
+    // the picture as one image: colour map and body from the base canvas, the particles from the overlay
+    stageRef.current = {
+      toBlob: (cb) => {
+        const b = baseRef.current;
+        const o = overlayRef.current;
+        if (!b || !o) return cb(null);
+        const c = document.createElement('canvas');
+        c.width = b.width;
+        c.height = b.height;
+        const g = c.getContext('2d');
+        g.drawImage(b, 0, 0);
+        g.drawImage(o, 0, 0, b.width, b.height);
+        return c.toBlob(cb, 'image/png');
+      },
+    };
+  }
 
   const hasField = !!field;
   useEffect(() => {
@@ -358,7 +389,7 @@ export function FlowStage({ result, layers, paused, hero = false, onProbe, idp =
 }
 
 /** The explorer's field card: layer toggles, the stage, hover probe, colour bar and pause / fps controls. */
-export default function FlowCanvas({ result, layers, onLayersChange, paused, onPausedChange, idp = '', children, footer }) {
+export default function FlowCanvas({ result, layers, onLayersChange, paused, onPausedChange, idp = '', children, footer, ghost = null, stageRef = null }) {
   const [probe, setProbe] = useState(null);
   const [fps, setFps] = useState(null);
 
@@ -391,7 +422,7 @@ export default function FlowCanvas({ result, layers, onLayersChange, paused, onP
         </div>
       </div>
       <div className="canvas-box flow-box">
-        <FlowStage result={result} layers={layers} paused={paused} onProbe={children ? undefined : setProbe} idp={idp} />
+        <FlowStage result={result} layers={layers} paused={paused} onProbe={children ? undefined : setProbe} idp={idp} ghost={ghost} stageRef={stageRef} />
         {children}
         {probe && (
           <div className="probe" style={{ left: Math.min(probe.left + 14, 9999), top: probe.top + 14 }} role="status">

@@ -14,6 +14,7 @@ import { DrawThumb, ExploreThumb, LabThumb, ResultsThumb } from './components/Th
 import { HEADLINE } from './data/headline.js';
 import { useSolve } from './hooks/useSolve.js';
 import { checkNacaCode } from './utils/naca.js';
+import { readState, writeState } from './utils/urlState.js';
 
 // Shown until (or if) the backend answers, so the layout never jumps.
 const FALLBACK_SOLVERS = [
@@ -28,21 +29,37 @@ const FALLBACK_PRESETS = [
 
 const params = new URLSearchParams(window.location.search);
 if (params.has('light')) document.documentElement.dataset.theme = 'light'; // ?light forces the light theme (printed figures)
+const PRESENT = params.has('present'); // ?present: kiosk mode that cycles through the demo cases
+if (PRESENT) document.documentElement.classList.add('present');
+const START = readState(window.location.search);
+
+// The cases ?present cycles through, 8 seconds each.
+const PRESENT_CYCLE = [
+  { tab: 'explore', code: '0012', alpha: 4, mach: 0.4 },
+  { tab: 'explore', code: '2412', alpha: 6, mach: 0.3 },
+  { tab: 'draw', shape: 'bird', alpha: 4, mach: 0 },
+  { tab: 'draw', shape: 'sedan', alpha: 0, mach: 0 },
+  { tab: 'draw', shape: 'circle', alpha: 0, mach: 0 },
+];
+const PRESENT_MS = 8000;
 
 export default function App() {
   const [solvers, setSolvers] = useState(FALLBACK_SOLVERS);
   const [presets, setPresets] = useState(FALLBACK_PRESETS);
   const [solver, setSolver] = useState('panel');
-  const [code, setCode] = useState('0012');
-  const [custom, setCustom] = useState('');
+  const [code, setCode] = useState(START.code);
+  const [custom, setCustom] = useState(FALLBACK_PRESETS.some((p) => p.code === START.code) ? '' : START.code);
   const [customMsg, setCustomMsg] = useState('');
-  const [alpha, setAlpha] = useState(4);
-  const [mach, setMach] = useState(0.4);
+  const [alpha, setAlpha] = useState((START.tab === 'explore' ? START.alpha : undefined) ?? 4);
+  const [mach, setMach] = useState((START.tab === 'explore' ? START.mach : undefined) ?? 0.4);
   const [reference, setReference] = useState(null);
   const [refStatus, setRefStatus] = useState({ kind: '', text: '' });
   const [layers, setLayers] = useState(DEFAULT_LAYERS);
   const [drawLayers, setDrawLayers] = useState(DEFAULT_LAYERS);
   const [paused, setPaused] = useState(prefersReducedMotion);
+  const [tab, setTab] = useState(START.tab); // the section whose state the page address follows
+  const [drawState, setDrawState] = useState(null);
+  const [drawRequest, setDrawRequest] = useState(null);
 
   const { result, error } = useSolve({ kind: 'naca', solver, code, alpha, mach, reference });
 
@@ -62,6 +79,58 @@ export default function App() {
     setCustomMsg(check.message);
     if (check.valid) setCode(v);
   };
+
+  // the page address follows the section the reader last used (freehand outlines are not stored)
+  useEffect(() => {
+    const s =
+      tab === 'draw' && drawState
+        ? { tab, code, alpha: drawState.alpha, mach: drawState.mach, shape: drawState.shape, lifting: drawState.lifting, ground: drawState.ground }
+        : { tab: 'explore', code, alpha, mach, shape: '', lifting: undefined, ground: '' };
+    const { pathname, search, hash } = window.location;
+    const next = pathname + writeState(search, s) + hash;
+    if (next !== pathname + search + hash) window.history.replaceState(null, '', next);
+  }, [tab, code, alpha, mach, drawState]);
+
+  useEffect(() => {
+    if (START.tab === 'draw' && !window.location.hash && !PRESENT) setTimeout(() => document.getElementById('draw')?.scrollIntoView(), 400);
+  }, []);
+
+  // ?present: cycle through the demo cases until the first user input
+  useEffect(() => {
+    if (!PRESENT) return undefined;
+    let stopped = false;
+    const stop = () => {
+      stopped = true;
+    };
+    const events = ['pointerdown', 'keydown', 'wheel', 'touchstart'];
+    events.forEach((e) => window.addEventListener(e, stop, { once: true, passive: true }));
+    const apply = (i) => {
+      const c = PRESENT_CYCLE[i];
+      setTab(c.tab);
+      if (c.tab === 'explore') {
+        setCustom('');
+        setCode(c.code);
+        setAlpha(c.alpha);
+        setMach(c.mach);
+      } else {
+        setDrawRequest({ id: c.shape, alpha: c.alpha, mach: c.mach, nonce: i + Math.random() });
+      }
+    };
+    apply(0);
+    let i = 0;
+    const id = setInterval(() => {
+      if (stopped) {
+        clearInterval(id);
+        return;
+      }
+      i = (i + 1) % PRESENT_CYCLE.length;
+      apply(i);
+    }, PRESENT_MS);
+    return () => {
+      clearInterval(id);
+      events.forEach((e) => window.removeEventListener(e, stop));
+    };
+  }, []);
 
   const loadSample = useCallback(async () => {
     try {
@@ -118,6 +187,7 @@ export default function App() {
       <main>
         <Section
           id="about"
+          cls="hide-present"
           band
           eyebrow="An airfoil flow explorer"
           title="We are AeroNet"
@@ -153,12 +223,16 @@ export default function App() {
           </div>
         </Section>
 
-        <Section id="explore" eyebrow="Airfoil flow explorer" title="Explore">
-          <div className="notice">
-            <b>Read this first.</b> This page shows how the final demo will look and behave. The solver running here (in the Python backend) is a
-            classical <b>panel method</b> (real physics, no neural network) standing in for the trained PINN. When the PINN results are exported,
-            they replace it; the layout, controls and checks stay the same.
-          </div>
+        <Section id="explore" eyebrow="Airfoil flow explorer" title="Explore" hidden={PRESENT && tab !== 'explore'}>
+          <details className="real hide-present">
+            <summary>What is real here</summary>
+            <ul>
+              <li><b>Real now:</b> the airfoil geometry, the panel solver (Hess–Smith, Python backend), the pressure field and curve, Cl from surface pressure, the thin-airfoil check (NACA codes only), the Mach correction and the solve time, which is measured on every request.</li>
+              <li><b>Stand-in:</b> the solver is a classical panel method (real physics, no neural network). The trained PINN replaces it when its results are exported; the layout and controls stay the same.</li>
+              <li><b>Idealized:</b> inviscid, subsonic (Prandtl–Glauert) and 2D. There is no separation or wake, so the drag shown is a numerical error, not a prediction, and cars show no drag value at all.</li>
+              <li><b>Quoted, not measured here:</b> the NeuralFoil timings in the comparison table come from its paper.</li>
+            </ul>
+          </details>
           {error && (
             <div className="notice error-banner" role="alert">
               {error}
@@ -169,7 +243,7 @@ export default function App() {
               )}
             </div>
           )}
-          <div className="layout">
+          <div className="layout" onPointerDownCapture={() => setTab('explore')} onKeyDownCapture={() => setTab('explore')}>
             <aside className="stack">
               <SolverCard solvers={solvers} value={solver} onChange={setSolver} />
               <AirfoilCard presets={presets} code={code} custom={custom} message={customMsg} onPreset={onPreset} onCustom={onCustom} />
@@ -177,27 +251,29 @@ export default function App() {
               <ReferenceCard status={refStatus} onLoadSample={loadSample} onClear={onClear} onFile={onFile} />
             </aside>
             <div className="stack">
-              <CaseView result={result} reference={reference} layers={layers} onLayersChange={setLayers} paused={paused} onPausedChange={setPaused} />
+              <CaseView caseName={`NACA ${code}`} polarSource={{ code, mach }} result={result} reference={reference} layers={layers} onLayersChange={setLayers} paused={paused} onPausedChange={setPaused} />
             </div>
           </div>
         </Section>
 
-        <Section id="draw" band eyebrow="Any closed shape" title="Draw">
-          <DrawSection layers={drawLayers} onLayersChange={setDrawLayers} paused={paused} onPausedChange={setPaused} />
+        <Section id="draw" band eyebrow="Any closed shape" title="Draw" hidden={PRESENT && tab !== 'draw'}>
+          <DrawSection layers={drawLayers} onLayersChange={setDrawLayers} paused={paused} onPausedChange={setPaused}
+            initial={START.tab === 'draw' ? START : { shape: START.shape, lifting: START.lifting, ground: START.ground }}
+            request={drawRequest} onState={setDrawState} onActivate={() => setTab('draw')} />
         </Section>
 
-        <Section id="pinn" eyebrow="Neural solver" title="PINN Lab">
+        <Section id="pinn" cls="hide-present" eyebrow="Neural solver" title="PINN Lab">
           <div className="results-stack">
             <div className="placeholder">Trained cases appear here once the PINN runs are exported. Nothing is shown now on purpose: there is no fake data on this page.</div>
             <TrainingCard />
           </div>
         </Section>
 
-        <Section id="overview" band eyebrow="Four ways in" title="What you can do">
+        <Section id="overview" cls="hide-present" band eyebrow="Four ways in" title="What you can do">
           <CardGrid items={cards} />
         </Section>
 
-        <Section id="results" eyebrow="Evidence" title="Results">
+        <Section id="results" cls="hide-present" eyebrow="Evidence" title="Results">
           <div className="results-stack">
             <ComparisonCard result={result} />
             <PipelineCard />

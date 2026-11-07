@@ -128,7 +128,7 @@ export function ShapeIcon({ points, ground }) {
 
 export function ShapeCard({ shapes, value, onChange, onUndo, onClear, canUndo }) {
   return (
-    <section className="card">
+    <section className="card card--shape">
       <h2>1 · Shape</h2>
       <div className="seg" role="group" aria-label="Drawing tools">
         <button type="button" aria-pressed={value.armed} onClick={() => onChange({ armed: !value.armed })} title="Mouse and pen always draw; this arms your finger on a touch screen">
