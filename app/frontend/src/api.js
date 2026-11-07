@@ -1,22 +1,39 @@
 // Thin client for the AeroNet backend (all paths are relative, so the same code works with the
 // Vite dev proxy and when FastAPI serves the built frontend).
 
+import { goOffline, isOffline, offlineLookup } from './offline/offline.js';
+
+// When the backend does not answer (network error, or a 5xx from the dev proxy without a JSON "detail"), the page switches to
+// saved results (see offline/offline.js). Real API errors (422, 503 with a message) are passed on unchanged.
 async function request(path, options = {}) {
+  const body = options.body ? JSON.parse(options.body) : undefined;
+  if (isOffline()) return offlineLookup(path, body);
   let res;
   try {
     res = await fetch(path, { headers: { 'Content-Type': 'application/json' }, ...options });
   } catch (e) {
     if (e.name === 'AbortError') throw e;
-    throw new Error('Cannot reach the solver API.');
+    goOffline();
+    return offlineLookup(path, body);
   }
   if (!res.ok) {
     let detail = `Request failed (${res.status}).`;
+    let hasDetail = false;
     try {
-      const body = await res.json();
-      if (typeof body.detail === 'string') detail = body.detail;
-      else if (Array.isArray(body.detail) && body.detail[0]?.msg) detail = body.detail[0].msg;
+      const err = await res.json();
+      if (typeof err.detail === 'string') {
+        detail = err.detail;
+        hasDetail = true;
+      } else if (Array.isArray(err.detail) && err.detail[0]?.msg) {
+        detail = err.detail[0].msg;
+        hasDetail = true;
+      }
     } catch {
       /* keep the generic message */
+    }
+    if (res.status >= 500 && !hasDetail) {
+      goOffline();
+      return offlineLookup(path, body);
     }
     throw new Error(detail);
   }

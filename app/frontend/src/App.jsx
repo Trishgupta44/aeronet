@@ -9,6 +9,7 @@ import CardGrid from './components/CardGrid.jsx';
 import Hero from './components/Hero.jsx';
 import Section from './components/Section.jsx';
 import SiteFooter from './components/SiteFooter.jsx';
+import BackendBanner from './components/BackendBanner.jsx';
 import ShowdownCard from './components/ShowdownCard.jsx';
 import TradeoffCard from './components/TradeoffCard.jsx';
 import ViscousCard from './components/ViscousCard.jsx';
@@ -179,6 +180,7 @@ export default function App() {
 
   return (
     <>
+      <BackendBanner />
       <SiteHeader />
       <Hero caption={result ? `Live: panel-method flow around NACA ${result.code} at ${result.alpha}°, the case selected below` : undefined}>
         {result && (
