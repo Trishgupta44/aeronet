@@ -1,0 +1,1 @@
+{"run_id": "naca2412_100x50_a8_m03", "mesh_file": "results/meshes/NACA2412_100_50.x", "mesh": "100x50", "shape": "NACA2412", "mach": 0.3, "alpha_deg": 8.0, "layers": [2, 128, 128, 128, 128, 128, 4], "rounds": 10, "lbfgs_max_iter": 1000, "threads": 8, "positivity": true, "seed": 0, "torch_version": "2.15.0+cpu", "started_utc": "2026-11-07T18:31:13Z"}

@@ -403,8 +403,18 @@ def collect(exp, runs_root=runs.RUNS, summary="results/summary.csv", rounds_dir=
         rows += e3_fvm_rows() + e3_panel_rows() + e3_thin_rows()
         for s in e3_specs(runs_root):
             take(s, runs.fvm_2412(s["alpha"]), "E3", case=f"NACA2412_a{s['alpha']}",
-                 extra=f"{E3_MESH_NOTE}; {E3_MACH_NOTE}; positivity on: a cold 100x50 start did not collapse in 4 of 4 "
-                       f"seeds in the seed check (off: 1 of 3 collapsed); not an E1 verdict")
+                 extra=f"{E3_MESH_NOTE}; {E3_MACH_NOTE}; seed 0, positivity on, cold 100x50 start; not an E1 verdict"
+                       + ("; THIS RUN COLLAPSED to the trivial solution (Cl about 0): see the two retries (rows with "
+                          "_s1 and pinn_nopos). In the NACA0012 seed check a cold positivity-on start did not "
+                          "collapse in 4 of 4 seeds, so a collapse is possible with positivity on too"
+                          if s["alpha"] == 4 else ""))
+        # retries of the collapsed 4-degree case (run by hand after the chain): another seed, and positivity off
+        for name, case, what in [
+            ("naca2412_100x50_a4_m03_s1", "NACA2412_a4_s1", "retry: seed 1, positivity on"),
+            ("naca2412_100x50_a4_m03_nopos", "NACA2412_a4", "retry: seed 0, positivity off"),
+        ]:
+            take({"name": name, "dir": runs_root / name}, runs.fvm_2412(4), "E3", case=case,
+                 extra=f"{E3_MESH_NOTE}; {E3_MACH_NOTE}; {what} (after the seed-0 positivity-on run collapsed)")
     else:
         raise SystemExit(f"unknown experiment {exp!r}")
     for r in rows:
