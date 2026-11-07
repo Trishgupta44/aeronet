@@ -23,26 +23,33 @@
   C6 (export), C11 (ablation flags), C9 (figures + `docs/milestones/M3-pinn-results.md`).
 - Held until Plan B is merged: C7, C8, C10 (they need Plan B's backend and `FlowCanvas`).
 
-## State when the laptop was closed (2026-11-06 about 11:20)
-- Branch `plan-c-pinn-results` (NOT merged into `main`; `main` has Plan A only). Everything below is committed here.
-- **E1 done and committed** (`results/e1_rounds.csv`, roadmap finding 8h): all six 50x25 runs reach Cp RMS
-  0.027-0.032 by round 3-5, then 5 of 6 degrade (RMS 0.12-0.22). Neither positivity setting wins. Recipe: stop at
-  3-5 rounds; test the C11 remedies.
-- **Experiment chain `results/run_plan_c.sh` was still running** (E2 200x100 grid-sequenced run at round 9 of 20;
-  E3 NACA 2412 not started). Closing the laptop freezes it (Modern Standby); it resumes when the machine wakes
-  if the processes survive. If the python processes are gone, resume like this (repo root, Git Bash):
-  - E2: `research/.venv/Scripts/python NNfoil/run_case.py --mesh NNfoil/mesh/NACA0012_200_100.x --shape NACA0012
-    --mach 0.4 --alpha 4 --rounds <remaining> --threads 8 --out results/runs/naca0012_200x100_a4_m04_gs_nopos
-    --no-positivity --resume`
-  - E3: `research/.venv/Scripts/python research/experiments.py commands e3 > /tmp/e3.sh; bash /tmp/e3.sh`
-  - then `research/.venv/Scripts/python research/experiments.py collect e2` (and `e3`), commit
-    `results/summary.csv`, `results/e*_rounds.csv` and the small run files (`config.json`, `log.json`,
-    `snapshots.json`); never commit `model.pt` or `field.npz`.
-- Only one training process at a time (timings). Check: `Get-Process python`.
-- Weekly Claude limit is nearly used up (extra usage disabled). Priority after the chain: C4 (speed table, needs an
-  idle CPU), C5 (cylinder), C9 (figures + `docs/milestones/M3-pinn-results.md`); then Plan B core
-  (B1-B3, B7-B8); then C6-C8, C11.
-- For unattended runs set the lid action to "Do nothing" (plugged in) and sleep to "Never".
+## STOPPED BY THE USER (2026-11-08, about 02:10): exact state and how to resume
+Nothing is running (training processes, the chain and the keep-awake helper were all stopped). Everything finished is committed.
+
+- **Branches:** `main` = Plan A + Plan B + the 7 extra demo features (local only, not pushed). `plan-c-pinn-results`
+  (checked out in the main folder, NOT merged into `main`) holds the research: E1-E5 results, E6 work in progress,
+  diagnostics code, corrections. Extra worktrees `../Aero-Net-planB` and `../Aero-Net-features` are no longer
+  needed (`git worktree remove <path>`).
+- **E6 (stop-rule experiment) is unfinished:** 6 held-out runs (seeds 3, 4, 5, positivity on and off, 20 attempts each,
+  folders `results/runs/naca0012_50x25_a4_m04[_nopos]_s{3,4,5}_e6`) and one online confirmation run
+  (`..._s3_e6_online`) are done and committed (`af5f51f`). Note two runs had many failed rounds
+  (`s3_e6`: 14 good + 6 failed, `nopos_s3_e6`: 11 good + 9 failed): count them as they are. The second
+  online run (`nopos_s4_e6_online`) was cut off and is NOT committed: delete it.
+  Still to do: run the replay on the six new runs (`research/stop_rule_eval.py`, tests pass: 153 total), write
+  `results/e6_stop_rule.md` (development set = E1, held-out = everything else; thresholds dCl 0.002, dCp 0.005,
+  window 2 were set after looking at E1; verdict with small-n caveat), add the `E6` rows to `results/summary.csv`.
+- **Next after E6 (Plan C):** C9 figures + `docs/milestones/M3-pinn-results.md` (`research/make_figures.py`,
+  `report_tables.py`); then the app side: C6 export of runs to case JSON, C7 backend, C8 PINN Lab frontend (replaces the
+  showdown's stopgap loader `app/backend/aeronet/pinn_data.py`), C10 train-on-your-shape; C11 ablations (stretch).
+  Then Plan D (README, report .docx, slides .pptx, offline test, `v1.0` tag; ask the user whether the original
+  deliverables exist outside the repo).
+- **Merging `plan-c-pinn-results` into `main`:** non-fast-forward; docs conflicts are possible in this HANDOFF and the
+  roadmap (`main` has none of these edits). Review before merging; ask the user.
+- **Budget:** about 17% of the weekly Claude limit used on 2026-11-08; extra usage is disabled (no charges possible).
+- **Only the user can answer:** do the original deliverables (report, slides, synopsis) exist outside the repo? Should
+  anything be pushed to GitHub (keep it private: NNfoil has no licence)?
+- **Timing rules:** timed runs need an idle, awake machine (a laptop sleep ruined the 200x100 run's time; withheld).
+  Run one training process at a time. For unattended runs set the lid action to "Do nothing" and sleep to "Never".
 
 ## Design direction (user request, 2026-11-07)
 - The user wants the frontend to look like an aerospace corporate site in the style of embraer.com/en (they are
