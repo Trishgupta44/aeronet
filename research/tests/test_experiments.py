@@ -232,3 +232,113 @@ def test_collect_e3_rows(tmp_path):
     p4 = next(r for r in by["pinn"] if r["case"] == "NACA2412_a4")
     assert "0.5" in p4["notes"] and "quoted" in p4["notes"] and "2401.08705" in p4["notes"]
     assert float(p4["cl_ref"]) == pytest.approx(0.7605, abs=5e-4)
+
+
+# ---------------------------------------------------------------- E4 (speed table)
+import time_inference as ti  # noqa: E402
+
+
+def _stats(mean, sd=0.1, n=100):
+    return {"mean": mean, "sd": sd, "median": mean, "min": mean - sd, "max": mean + sd, "n": n}
+
+
+def fake_timing(neuralfoil_ok=True):
+    pinn = {}
+    for spec in ex.E4_PINN_RUNS:
+        pts = {"50x25": 1300, "100x50": 5100, "200x100": 20200}[spec["mesh"]]
+        pinn[spec["run"]] = {"n_points": pts, "threads": {
+            "1": {"field": _stats(pts / 1000.0), "wall": _stats(0.5)},
+            "8": {"field": _stats(pts / 4000.0), "wall": _stats(0.4)}}}
+    nf = ({"time": _stats(3.5, 0.2), "cl": 0.421, "cd": 0.0107, "confidence": 0.99, "model_size": "large", "version": "0.3.3"}
+          if neuralfoil_ok else {"error": "ImportError: no module named neuralfoil"})
+    return {"hardware": {"cpu": "Test CPU", "logical_threads": 16, "torch": "2.15.0+cpu", "numpy": "2.5.4",
+                         "python": "3.13", "platform": "Windows", "neuralfoil": "0.3.3"},
+            "calls": 100, "warmup": 10, "cpu_load_before": {}, "pinn": pinn,
+            "panel": {"solve": _stats(2.2), "solve_field170": _stats(40.0), "n_panels": 140,
+                      "field_width": 170, "blas_threads": "default"},
+            "neuralfoil": nf}
+
+
+def _e4_runs(root):
+    for spec in ex.E4_PINN_RUNS:
+        fake_run(root, spec["run"], mesh=spec["mesh"], positivity="nopos" not in spec["method"],
+                 init_from="a" if "gs" in spec["method"] else None, rounds=3, time_per_round=100.0)
+
+
+def test_selig_order():
+    xy = ti.selig_coords("0012", 70)
+    assert xy.shape[1] == 2 and len(xy) >= 140
+    assert xy[0, 0] == pytest.approx(1.0, abs=1e-6) and xy[-1, 0] == pytest.approx(1.0, abs=1e-6)
+    assert abs(int(xy[:, 0].argmin()) - len(xy) // 2) <= 2  # leading edge in the middle of the array
+    assert xy[1, 1] > 0 and xy[-2, 1] < 0  # TE -> upper surface -> LE -> lower surface
+
+
+def test_summarize_mean_and_sd():
+    s = ti.summarize([1.0, 2.0, 3.0, 4.0])
+    assert s["mean"] == 2.5 and s["n"] == 4 and s["sd"] == pytest.approx(1.2909944, abs=1e-6)
+    assert s["median"] == 2.5 and s["min"] == 1.0 and s["max"] == 4.0
+
+
+def test_time_callable_discards_warmup():
+    calls = []
+    out = ti.time_callable(lambda: calls.append(1), calls=5, warmup=3)
+    assert len(calls) == 8 and len(out) == 5 and all(t >= 0 for t in out)
+
+
+def test_e4_rows_have_a_source_and_keep_quoted_and_measured_apart(tmp_path):
+    root = tmp_path / "runs"
+    root.mkdir()
+    _e4_runs(root)
+    rows = ex.e4_rows(fake_timing(), runs_root=root)
+    assert len(rows) >= 5 and all(r["experiment"] == "E4" and r["case"] == "NACA0012_a4" for r in rows)
+    assert all(r["source"] in ("measured", "quoted") for r in rows)
+    fvm = [r for r in rows if r["method"] == "fvm"]
+    assert [(r["mesh"], r["infer_ms"]) for r in fvm] == [("50x25", 9000), ("100x50", 24000), ("200x100", 53000),
+                                                         ("400x200", 285000)]
+    assert all(r["source"] == "quoted" and "not meant as a rigorous comparison" in r["notes"] for r in fvm)
+    panel = next(r for r in rows if r["method"] == "panel")
+    assert panel["source"] == "measured" and panel["infer_ms"] == 2.2 and panel["train_s"] is None
+    nf = next(r for r in rows if r["method"] == "neuralfoil")
+    assert nf["infer_ms"] == 3.5 and nf["cl"] == 0.421 and nf["cl_ref"] is None
+    assert "viscous" in nf["notes"] and "not comparable" in nf["notes"]
+    p200 = next(r for r in rows if r["mesh"] == "200x100" and r["method"].startswith("pinn"))
+    assert p200["train_s"] is None and "withheld" in p200["notes"] and p200["infer_ms"] is not None
+    p50 = next(r for r in rows if r["method"] == "pinn_nopos" and r["mesh"] == "50x25")
+    assert p50["train_s"] == 300.0 and p50["infer_ms"] == pytest.approx(0.325)  # 8-thread field mean
+
+
+def test_e4_rows_when_neuralfoil_is_missing(tmp_path):
+    root = tmp_path / "runs"
+    root.mkdir()
+    _e4_runs(root)
+    rows = ex.e4_rows(fake_timing(neuralfoil_ok=False), runs_root=root)
+    nf = next(r for r in rows if r["method"] == "neuralfoil")
+    assert nf["infer_ms"] is None and nf["cl"] is None and nf["notes"].startswith("not measured")
+    assert "no module named neuralfoil" in nf["notes"]
+
+
+def test_collect_e4_writes_summary_and_markdown(tmp_path):
+    root = tmp_path / "runs"
+    root.mkdir()
+    _e4_runs(root)
+    tj = tmp_path / "e4_timing.json"
+    tj.write_text(json.dumps(fake_timing()))
+    summary, md = tmp_path / "summary.csv", tmp_path / "e4_speed.md"
+    rows = ex.collect_e4(runs_root=root, summary=summary, timing_path=tj, md_path=md)
+    assert len(list(csv.DictReader(summary.open()))) == len(rows) >= 5
+    text = md.read_text(encoding="utf8")
+    for needle in ("Test CPU", "2.15.0+cpu", "quoted", "measured", "What this does and does not show", "threads",
+                   "retrain", "another machine", "±"):
+        assert needle in text
+
+
+def test_time_pinn_smoke_on_a_tiny_run(tiny_run, capsys):
+    r = ti.time_pinn(tiny_run, calls=3, warmup=1, threads=(1,))
+    f = r["threads"]["1"]
+    assert r["n_points"] == 51 * 25  # (N + 1) x M: the closed mesh grid, seam row included
+    assert f["field"]["n"] == 3 and f["wall"]["n"] == 3 and f["field"]["mean"] > 0
+    assert ti.main([str(tiny_run), "--calls", "2", "--warmup", "1", "--threads", "1"]) == 0
+    import json as _json
+
+    out = _json.loads(capsys.readouterr().out.strip().splitlines()[-1])
+    assert set(out) >= {"infer_ms", "infer_ms_std", "n_points", "threads"} and out["threads"] == 1

@@ -10,12 +10,15 @@ then run ``collect``. Every figure is made by ``make_figures.py``, never here.
 E1  positivity on/off, NACA 0012 50x25, Ma 0.4, 4 deg, seeds 0-2, 20 rounds (seed 0 = the Plan A runs).
 E2  mesh size vs Cp error against FVM 800x400: FVM, panel and PINN (the 200x100 run is chained from 50x25 -> 100x50).
 E3  NACA 2412 at Ma 0.3 (quoted from the paper): FVM / panel / thin-airfoil polar points and PINN runs at 4 angles.
+E4  speed table: needs ``results/e4_timing.json`` from ``research/time_inference.py --e4`` (run alone, on an idle CPU);
+    ``collect e4`` writes the summary rows and ``results/e4_speed.md`` (measured and quoted times kept apart).
 """
 
 from __future__ import annotations
 
 import argparse
 import csv
+import json
 import math
 import shlex
 import sys
@@ -423,6 +426,194 @@ def collect(exp, runs_root=runs.RUNS, summary="results/summary.csv", rounds_dir=
     return rows
 
 
+# ---------------------------------------------------------------- E4: speed table (measured vs quoted)
+E4_CASE = "NACA0012_a4"
+# the paper's Table 1 FVM wall times for NACA 0012, 4 deg, Ma 0.4 (arXiv 2401.08705), in seconds; and the NNfoil times
+FVM_QUOTED_S = {"50x25": 9, "100x50": 24, "200x100": 53, "400x200": 285}
+NNFOIL_PAPER_S = {"50x25": 384, "100x50": 266, "200x100": 262, "400x200": 271}
+E4_PAPER_CAVEAT = ("quoted from Table 1 of arXiv 2401.08705 (NACA 0012, 4 deg, Ma 0.4), measured by the paper's authors "
+                   "on another machine; the paper says the table is \"not meant as a rigorous comparison\"")
+# train_s is taken from the run logs of runs measured on an idle CPU in Plan A; the 200x100 run is withheld (the laptop slept)
+E4_PINN_RUNS = [
+    {"run": "naca0012_50x25_a4_m04", "method": "pinn", "mesh": "50x25", "train_ok": True},
+    {"run": "naca0012_50x25_a4_m04_nopos", "method": "pinn_nopos", "mesh": "50x25", "train_ok": True},
+    {"run": "naca0012_100x50_a4_m04", "method": "pinn", "mesh": "100x50", "train_ok": True},
+    {"run": "naca0012_100x50_a4_m04_gs", "method": "pinn_gs", "mesh": "100x50", "train_ok": True},
+    {"run": "naca0012_100x50_a4_m04_gs_nopos", "method": "pinn_gs_nopos", "mesh": "100x50", "train_ok": True},
+    {"run": "naca0012_200x100_a4_m04_gs_nopos", "method": "pinn_gs_nopos", "mesh": "200x100", "train_ok": False},
+]
+
+
+def _ms(st, nd=3) -> str:
+    return f"{st['mean']:.{nd}f} +/- {st['sd']:.{nd}f} ms (n={st['n']})"
+
+
+def _pinn_e4_row(spec, t, runs_root):
+    th = t["threads"]
+    f8, f1 = th["8"], th["1"]
+    notes = [f"infer_ms = full-field forward pass model(XE) over all {t['n_points']} mesh nodes (u, v, p, rho everywhere, "
+             f"not just Cl), torch.no_grad, 8 threads, mean over {f8['field']['n']} calls after warm-up: "
+             f"{_ms(f8['field'])}",
+             f"1 thread: {_ms(f1['field'])}",
+             f"wall-only evaluate_wall (Cp, Cl, Cd): 8 threads {_ms(f8['wall'])}; 1 thread {_ms(f1['wall'])}"]
+    train = None
+    run_dir = Path(runs_root) / spec["run"]
+    if spec["train_ok"] and (run_dir / "log.json").exists():
+        run = runs.load_run(run_dir)
+        train = round(run["log"]["time_s"][-1], 1)
+        notes.append(f"train_s = log.time_s[-1] of {spec['run']} (8 threads, idle CPU, measured in Plan A)")
+        init = run["config"].get("init_from")
+        if init:
+            parent = Path(runs_root) / Path(str(init)).name
+            ptxt = ""
+            if (parent / "log.json").exists():
+                ptxt = f" ({runs.load_run(parent)['log']['time_s'][-1]:.1f} s)"
+            notes.append(f"grid-sequenced: train_s is this stage only and excludes the parent run {init}{ptxt}")
+    elif not spec["train_ok"]:
+        notes.append("train_s withheld: the laptop slept during this run, so its wall time is not valid")
+    return {"experiment": "E4", "case": E4_CASE, "method": spec["method"], "mesh": spec["mesh"], "mach": MACH,
+            "alpha_deg": ALPHA, "rms_cp": None, "max_cp": None, "cl": None, "cl_ref": None, "cd": None,
+            "train_s": train, "infer_ms": _r(f8["field"]["mean"], 4), "source": "measured", "notes": "; ".join(notes)}
+
+
+def e4_rows(timing, runs_root=runs.RUNS) -> list[dict]:
+    """Summary rows (experiment E4) from a timing dict: PINN, panel and NeuralFoil (measured), FVM (quoted)."""
+    rows = []
+    for spec in E4_PINN_RUNS:
+        t = timing["pinn"].get(spec["run"])
+        if t is not None:
+            rows.append(_pinn_e4_row(spec, t, runs_root))
+    pl = timing.get("panel")
+    if pl:
+        rows.append({"experiment": "E4", "case": E4_CASE, "method": "panel", "mesh": f"{pl['n_panels']} panels",
+                     "mach": MACH, "alpha_deg": ALPHA, "rms_cp": None, "max_cp": None, "cl": None, "cl_ref": None,
+                     "cd": None, "train_s": None, "infer_ms": _r(pl["solve"]["mean"], 4), "source": "measured",
+                     "notes": (f"infer_ms = panel.solve('0012', 4, 0.4, 70) only, mean over {pl['solve']['n']} calls "
+                               f"after warm-up: {_ms(pl['solve'])}, median {pl['solve']['median']:.3f} ms, max {pl['solve']['max']:.1f} ms (includes building the geometry; no training; "
+                               f"BLAS threads: {pl.get('blas_threads', 'default')}); solve plus field_grid("
+                               f"{pl['field_width']}) (Cp on the whole window): {_ms(pl['solve_field170'], 2)}")})
+    nf = timing.get("neuralfoil")
+    if nf is not None:
+        base = {"experiment": "E4", "case": E4_CASE, "method": "neuralfoil", "mesh": "large", "mach": None,
+                "alpha_deg": ALPHA, "rms_cp": None, "max_cp": None, "cl_ref": None, "cd": None, "train_s": None,
+                "source": "measured"}
+        if "error" in nf:
+            rows.append({**base, "cl": None, "infer_ms": None,
+                         "notes": f"not measured: neuralfoil unavailable ({nf['error']})"})
+        else:
+            rows.append({**base, "cl": _r(nf["cl"], 4), "cd": _r(nf["cd"], 5), "infer_ms": _r(nf["time"]["mean"], 4),
+                         "notes": (f"infer_ms = neuralfoil {nf['version']} get_aero_from_coordinates, model_size "
+                                   f"{nf['model_size']}, NACA 0012 at 4 deg, Re 6e6, mean over {nf['time']['n']} calls "
+                                   f"after warm-up: {_ms(nf['time'])} (the Kulfan fit is inside the time); cl is "
+                                   f"viscous, Re 6e6, incompressible: not comparable with the inviscid Ma 0.4 "
+                                   f"cl_ref 0.5193 of the FVM, so cl_ref is left empty; analysis_confidence "
+                                   f"{nf['confidence']:.3f}")})
+    for mesh, sec in FVM_QUOTED_S.items():
+        rows.append({"experiment": "E4", "case": E4_CASE, "method": "fvm", "mesh": mesh, "mach": MACH,
+                     "alpha_deg": ALPHA, "rms_cp": None, "max_cp": None, "cl": None, "cl_ref": None, "cd": None,
+                     "train_s": None, "infer_ms": sec * 1000, "source": "quoted",
+                     "notes": f"infer_ms = FVM wall time of one solve, {sec} s, {E4_PAPER_CAVEAT}"})
+    return rows
+
+
+def _md_e4(timing, rows) -> str:
+    hw = timing["hardware"]
+    load = timing.get("cpu_load_before", {})
+    peak = max((max(v) for v in load.values() if v), default=None)
+    L = ["# E4: speed table (measured vs quoted)", "",
+         "Condition: NACA 0012, 4 degrees, Ma 0.4 (the FVM files' condition). Generated by `research/experiments.py "
+         "collect e4` from `results/e4_timing.json` (made by `research/time_inference.py --e4`).", "",
+         "## Hardware and method (measured here)", "",
+         f"- CPU: {hw['cpu']} ({hw['logical_threads']} logical threads); {hw['platform']}",
+         f"- Python {hw['python']}, torch {hw['torch']}, numpy {hw['numpy']}, neuralfoil {hw.get('neuralfoil') or 'n/a'}",
+         f"- Every timing: {timing['warmup']} untimed warm-up calls, then the mean and sample standard deviation "
+         f"(n - 1) of {timing['calls']} calls timed one by one with `time.perf_counter`; one timing block at a time, "
+         "nothing else running. PINN calls run under `torch.no_grad()`.",
+         "- Total CPU load seen before each timing block (percent): "
+         + ("highest sample " + str(peak) + "; " if peak is not None else "")
+         + "; ".join(f"{k.replace('naca0012_', '').replace('_a4_m04', '')}: {v}" for k, v in load.items()), "",
+         "## PINN inference (measured)", "",
+         "Full field = one forward pass `model(XE)` over every mesh node (u, v, p, rho at all nodes). Wall only = "
+         "`evaluate_wall()` (Cp on the wall plus Cl and Cd).", "",
+         "| Trained run | Mesh | Nodes | Threads | Full field, ms (mean ± sd) | Wall only, ms (mean ± sd) | n |",
+         "|---|---|---|---|---|---|---|"]
+    for spec in E4_PINN_RUNS:
+        t = timing["pinn"].get(spec["run"])
+        if not t:
+            continue
+        for th in ("1", "8"):
+            f = t["threads"][th]
+            L.append(f"| `{spec['run']}` | {spec['mesh']} | {t['n_points']} | {th} | "
+                     f"{f['field']['mean']:.3f} ± {f['field']['sd']:.3f} | {f['wall']['mean']:.3f} ± "
+                     f"{f['wall']['sd']:.3f} | {f['field']['n']} |")
+    L += ["", "## PINN training time (measured in Plan A: 8 threads, idle CPU)", "",
+          "| Trained run | Mesh | train_s | Note |", "|---|---|---|---|"]
+    for spec in E4_PINN_RUNS:
+        r = next((r for r in rows if r["method"] == spec["method"] and r["mesh"] == spec["mesh"]), None)
+        if r is None:
+            continue
+        note = ("withheld: the laptop slept during this run" if r["train_s"] is None
+                else "this stage only, excludes the parent run" if "gs" in r["method"] else "")
+        L.append(f"| `{spec['run']}` | {r['mesh']} | {'' if r['train_s'] is None else format(r['train_s'], '.1f')} | {note} |")
+    pl, nf = timing.get("panel"), timing.get("neuralfoil")
+    L += ["", "## Other methods", "", "| Method | Setting | What is timed | Time (mean ± sd) | n | Source |",
+          "|---|---|---|---|---|---|"]
+    if pl:
+        L.append(f"| Panel method (Hess-Smith + Prandtl-Glauert) | {pl['n_panels']} panels | `solve()` only | "
+                 f"{pl['solve']['mean']:.3f} ± {pl['solve']['sd']:.3f} ms (median {pl['solve']['median']:.3f}, max {pl['solve']['max']:.1f}) | {pl['solve']['n']} | measured |")
+        L.append(f"| Panel method | {pl['n_panels']} panels | `solve()` + `field_grid({pl['field_width']})` | "
+                 f"{pl['solve_field170']['mean']:.2f} ± {pl['solve_field170']['sd']:.2f} ms | "
+                 f"{pl['solve_field170']['n']} | measured |")
+    if nf is not None:
+        if "error" in nf:
+            L.append(f"| NeuralFoil | large | per call | not measured: {nf['error']} | | |")
+        else:
+            L.append(f"| NeuralFoil {nf['version']} | large, Re 6e6 | `get_aero_from_coordinates` (includes the Kulfan "
+                     f"fit) | {nf['time']['mean']:.3f} ± {nf['time']['sd']:.3f} ms | {nf['time']['n']} | measured |")
+    for mesh, sec in FVM_QUOTED_S.items():
+        L.append(f"| FVM | {mesh} | one solve, wall time | {sec} s | | quoted (arXiv 2401.08705 Table 1) |")
+    L.append("")
+    if nf is not None and "error" not in nf:
+        L.append(f"NeuralFoil returned CL = {nf['cl']:.3f} (viscous, Re 6e6, incompressible): **not comparable** with the "
+                 "inviscid Ma 0.4 FVM Cl of 0.519. Only its time is reported; it is used in no accuracy statement.")
+        L.append("")
+    L += ["For context, the paper's own NNfoil training wall times in Table 1 (quoted, another machine) are "
+          + ", ".join(f"{v} s at {k}" for k, v in NNFOIL_PAPER_S.items())
+          + "; the paper notes that L-BFGS often stops early.", "",
+          "## What this does and does not show", "",
+          "- **A PINN is trained per condition.** The inference time above is the cost of evaluating a network that "
+          "was already trained for ONE shape, Mach number and angle of attack. It is a lookup of that one "
+          "condition, not a solver. A new condition (another Mach number, angle or shape) means retraining, and the "
+          "training times in the table are what that costs on this laptop.",
+          "- **The panel method needs no training.** Each new condition is a fresh solve of a few milliseconds. It "
+          "is inviscid and linear (Prandtl-Glauert), so it does not capture the non-linear compressible effects the "
+          "Euler PINN is built for.",
+          "- **The FVM times are quoted from another machine.** They come from Table 1 of the paper, are one solve "
+          "each, were run on the authors' hardware and are not re-measured here; the paper itself says the table is "
+          "\"not meant as a rigorous comparison\".",
+          "- **NeuralFoil solves a different problem** (viscous, incompressible, Re 6e6), so its time is a speed "
+          "reference only and its Cl is not compared with ours.",
+          "- **No fair-speed claim is made beyond what is measured.** Accuracy at equal cost is a different question: "
+          "it is answered by E2 (Cp error against the 800x400 FVM), not by this table. All times were measured on one "
+          "laptop CPU with PyTorch; GPUs and other batch sizes were not measured."]
+    return "\n".join(L) + "\n"
+
+
+def collect_e4(runs_root=runs.RUNS, summary="results/summary.csv", timing_path=None, md_path=None):
+    """Timing JSON -> E4 rows in ``summary`` and the human-readable table ``results/e4_speed.md``."""
+    timing_path = Path(timing_path) if timing_path is not None else ROOT / "results" / "e4_timing.json"
+    md_path = Path(md_path) if md_path is not None else ROOT / "results" / "e4_speed.md"
+    if not timing_path.exists():
+        raise SystemExit(f"{timing_path} is missing: run `research/time_inference.py --e4` first (on an idle CPU)")
+    timing = json.loads(timing_path.read_text(encoding="utf8"))
+    rows = e4_rows(timing, runs_root)
+    for r in rows:
+        metrics.append_summary(r, summary)
+    md_path.parent.mkdir(parents=True, exist_ok=True)
+    md_path.write_text(_md_e4(timing, rows), encoding="utf8", newline="\n")
+    return rows
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -432,7 +623,7 @@ def main(argv=None) -> int:
     c.add_argument("--rounds", type=int, default=None, help="override the number of rounds (e1, e3)")
     c.add_argument("--threads", type=int, default=8)
     k = sub.add_parser("collect", help="finished run folders -> results/summary.csv rows")
-    k.add_argument("exp", choices=["e1", "e2", "e3"])
+    k.add_argument("exp", choices=["e1", "e2", "e3", "e4"])
     k.add_argument("--summary", default="results/summary.csv")
     a = ap.parse_args(sys.argv[1:] if argv is None else argv)
     if a.cmd == "commands":
@@ -444,9 +635,10 @@ def main(argv=None) -> int:
         if not lines:
             print(f"# nothing to run for {a.exp}", file=sys.stderr)
         return 0
-    rows = collect(a.exp, summary=a.summary)
+    rows = collect_e4(summary=a.summary) if a.exp == "e4" else collect(a.exp, summary=a.summary)
     _print_rows(rows)
-    print(f"wrote {len(rows)} rows to {a.summary} and results/{a.exp}_rounds.csv")
+    extra = "results/e4_speed.md" if a.exp == "e4" else f"results/{a.exp}_rounds.csv"
+    print(f"wrote {len(rows)} rows to {a.summary} and {extra}")
     return 0
 
 
