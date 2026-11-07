@@ -106,3 +106,17 @@ def test_compare_cp_nearest_on_the_bundled_sample():
     assert c["n"] == 162
     assert c["rms"] == pytest.approx(0.0231, abs=0.002)
     assert compare_cp_nearest(solve("0012", 4, 0.4, 80), np.empty((0, 3))) == {"rms": None, "max": None, "n": 0}
+
+
+def test_every_library_shape_is_a_clean_outline():
+    from aeronet.shapes import library
+
+    for p in library():
+        pts = np.array(p["points"])
+        assert not self_intersects(pts[:, 0], pts[:, 1]), p["id"]  # the raw outline, before resampling
+        X, Y, info, _ = prepare_shape(pts, lifting=p["lifting"])
+        assert X.min() == pytest.approx(0.0, abs=1e-12) and X.max() == pytest.approx(1.0, abs=1e-12), p["id"]
+        assert (X[0], Y[0]) == (pytest.approx(1.0), pytest.approx(0.0, abs=1e-12)) and signed_area(X, Y) > 0
+        assert info["chord"] == pytest.approx(1.0, abs=0.02), p["id"]  # all presets are drawn with chord 1
+        s = solve_xy(X, Y, 0.0, 0.0, lifting=p["lifting"], ground=p["ground"])
+        assert np.isfinite(s.cp).all() and np.isfinite(s.cl), p["id"]

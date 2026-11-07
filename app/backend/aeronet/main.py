@@ -18,9 +18,10 @@ from .compare import compare_cp, compare_cp_nearest, parse_reference, thin_airfo
 from .field import field_grid
 from .geometry import naca4
 from .panel import PanelSolution, solve as panel_solve, solve_xy
-from .shapes import prepare_shape
+from .shapes import library, parse_dat, prepare_shape
 from .schemas import (
     AirfoilPreset,
+    DatData,
     Comparison,
     FieldData,
     ParseRequest,
@@ -28,6 +29,7 @@ from .schemas import (
     PolarResponse,
     ReferenceData,
     ShapeInfo,
+    ShapePreset,
     ShapeSolveRequest,
     ShapeSolveResponse,
     SolveRequest,
@@ -41,6 +43,8 @@ BACKEND_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = BACKEND_DIR / "data"
 FRONTEND_DIST = BACKEND_DIR.parent / "frontend" / "dist"
 SAMPLE_FILE = DATA_DIR / "reference_naca0012_200x100.dat"
+
+SHAPES = library()  # presets are built once, at import time
 
 app = FastAPI(title="AeroNet API", version=__version__, description="Airfoil flow solver (panel-method stand-in for the NNfoil PINN).")
 app.add_middleware(
@@ -158,6 +162,21 @@ def polar(req: PolarRequest) -> PolarResponse:
         sols = [solve_xy(X, Y, a, req.mach, lifting=req.lifting, ground=req.ground) for a in req.alphas]
         cl_thin = None
     return PolarResponse(alpha=req.alphas, cl=[s.cl for s in sols], cl_thin=cl_thin)
+
+
+@app.get("/api/shapes", response_model=list[ShapePreset])
+def list_shapes() -> list[dict]:
+    return SHAPES
+
+
+@app.post("/api/shapes/parse_dat", response_model=DatData)
+def parse_dat_file(req: ParseRequest) -> DatData:
+    """Read a UIUC Selig or Lednicer airfoil file into an outline for /api/solve_shape."""
+    try:
+        name, points = parse_dat(req.text)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return DatData(name=name or req.name, points=points)
 
 
 @app.post("/api/reference/parse", response_model=ReferenceData)

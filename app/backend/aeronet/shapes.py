@@ -116,7 +116,7 @@ def prepare_shape(points, n: int = 200, lifting: bool = True):
     area = signed_area(X, Y)
     if area < MIN_AREA:
         raise ValueError("The shape is too thin or has no inside area.")
-    if Y.min() < -Y_LIMIT or Y.max() > Y_LIMIT:
+    if Y.min() < -Y_LIMIT - 1e-6 or Y.max() > Y_LIMIT + 1e-6:
         raise ValueError(
             "After scaling to length 1 the shape does not fit the view (its height must stay within half a "
             "length above and below the tail). Draw a longer, flatter shape."
@@ -134,3 +134,95 @@ def prepare_shape(points, n: int = 200, lifting: bool = True):
             "For bluff bodies turn lift off."
         )
     return X, Y, info, warnings
+
+
+def parse_dat(text: str):
+    """Read a UIUC airfoil ``.dat`` file (Selig or Lednicer). Returns ``(name, points)``.
+
+    The first non-empty line is the name; every later line with two or more numbers (spaces or commas)
+    is a point. Selig files run trailing edge -> upper surface -> leading edge -> lower surface and are
+    used as they are. Lednicer files start with the two point counts (both above 1.5), then the upper
+    surface and the lower surface, each from the leading edge to the trailing edge.
+    """
+    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+    if not lines:
+        raise ValueError("The file is empty.")
+    name = lines[0]
+    rows: list[tuple[float, float]] = []
+    for ln in lines[1:]:
+        parts = ln.replace(",", " ").split()
+        try:
+            x, y = float(parts[0]), float(parts[1])
+        except (ValueError, IndexError):
+            continue
+        if np.isfinite([x, y]).all():
+            rows.append((x, y))
+    if rows and rows[0][0] > 1.5 and rows[0][1] > 1.5:  # Lednicer: first row holds the counts
+        nu, nl = int(round(rows[0][0])), int(round(rows[0][1]))
+        body = rows[1:]
+        if nu < 2 or nl < 2 or len(body) < nu + nl:
+            raise ValueError("The Lednicer header announces more points than the file contains.")
+        upper, lower = body[:nu], body[nu : nu + nl]
+        rows = upper[::-1] + lower[1:]
+    if len(rows) < MIN_POINTS:
+        raise ValueError(f"Found only {len(rows)} coordinate rows; a shape needs at least {MIN_POINTS}.")
+    return name, rows
+
+
+# ---- preset library -------------------------------------------------------------------------------
+
+SEDAN = [(1.00, 0.10), (0.99, 0.16), (0.97, 0.20), (0.80, 0.215), (0.74, 0.23), (0.66, 0.33), (0.58, 0.355),
+         (0.42, 0.36), (0.33, 0.33), (0.24, 0.235), (0.10, 0.20), (0.03, 0.17), (0.00, 0.12), (0.005, 0.07),
+         (0.03, 0.03), (0.10, 0.00), (0.90, 0.00), (0.97, 0.03), (0.995, 0.06)]
+SPORTS_CAR = [(1.00, 0.12), (0.98, 0.17), (0.92, 0.19), (0.80, 0.20), (0.62, 0.26), (0.52, 0.275), (0.42, 0.27),
+              (0.32, 0.21), (0.15, 0.13), (0.04, 0.08), (0.00, 0.05), (0.02, 0.015), (0.08, 0.00), (0.92, 0.00),
+              (0.98, 0.04)]
+
+CIRCLE_NOTE = "Compare with NNfoil's FVM cylinder (Mach 0.4): Cp min \u22123.70 there vs \u22123.27 here (Prandtl\u2013Glauert)."
+CAR_NOTE = (
+    "Idealized potential flow: no separation and no wake, so the rear pressure is not realistic and drag is "
+    "not shown. Use it to see where the flow speeds up and how the road changes lift."
+)
+
+
+def _ellipse(a: float, b: float, n: int, cx: float = 0.0):
+    t = np.linspace(0.0, 2.0 * np.pi, n, endpoint=False)
+    return np.column_stack([cx + a * np.cos(t), b * np.sin(t)])
+
+
+def _symmetric(half_thickness, n: int = 81):
+    """Symmetric outline from a half-thickness function of x: cosine-spaced x from 1 to 0, upper then lower."""
+    x = 0.5 * (1.0 + np.cos(np.pi * np.arange(n) / (n - 1)))  # 1 -> 0
+    yt = half_thickness(x)
+    upper = np.column_stack([x, yt])
+    lower = np.column_stack([x[::-1], -yt[::-1]])[1:-1]  # leading and trailing points already in `upper`
+    return np.vstack([upper, lower])
+
+
+def library() -> list[dict]:
+    """Preset shapes: ``[{id, label, points, lifting, ground, note}]`` (points rounded to 5 decimals)."""
+    from .geometry import naca4  # local import keeps shapes.py importable on its own
+
+    bird = naca4("6409", 60)
+    plate = lambda x: 0.015 * np.sqrt(np.minimum(1.0, x / 0.02)) * np.minimum(1.0, (1.0 - x) / 0.1)
+    teardrop = lambda x: 0.25 * np.sqrt(x) * (1.0 - x)
+    entries = [
+        ("circle", "Circle", _ellipse(0.5, 0.5, 96, cx=0.5), False, None, CIRCLE_NOTE),
+        ("ellipse", "Ellipse 3:1", _ellipse(0.5, 0.5 / 3.0, 96, cx=0.5), False, None, ""),
+        ("teardrop", "Teardrop", _symmetric(teardrop), True, None, ""),
+        ("plate", "Flat plate", _symmetric(plate), True, None, ""),
+        ("bird", "Bird wing", np.column_stack([bird.x, bird.y]), True, None, ""),
+        ("sedan", "Sedan", chaikin(SEDAN, 3), False, 0.03, CAR_NOTE),
+        ("sports", "Sports car", chaikin(SPORTS_CAR, 3), False, 0.02, CAR_NOTE),
+    ]
+    return [
+        {
+            "id": id_,
+            "label": label,
+            "points": np.round(pts, 5).tolist(),
+            "lifting": lifting,
+            "ground": ground,
+            "note": note,
+        }
+        for id_, label, pts, lifting, ground, note in entries
+    ]

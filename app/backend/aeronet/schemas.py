@@ -145,3 +145,17 @@ class SolverInfo(BaseModel):
 class AirfoilPreset(BaseModel):
     code: str
     label: str
+
+
+class ShapePreset(BaseModel):
+    id: str
+    label: str
+    points: list[tuple[float, float]]
+    lifting: bool
+    ground: float | None = None
+    note: str = ""
+
+
+class DatData(BaseModel):
+    name: str
+    points: list[tuple[float, float]]
