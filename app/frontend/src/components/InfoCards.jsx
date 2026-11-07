@@ -1,15 +1,25 @@
 // Results, speed/accuracy table, training-history placeholder and the project pipeline card.
 
-export function ResultsCard({ result }) {
+export function ResultsCard({ result, idp = '' }) {
   const dash = '–';
+  const custom = result?.code === 'custom';
+  const noDrag = result?.ground_y != null; // a car on a road: inviscid flow has no drag, so no number is shown
   return (
     <section className="card">
       <h2>Results</h2>
       <div className="metrics">
-        <div className="metric"><div className="k">Lift coefficient Cl</div><div className="v" id="mCl">{result ? result.cl.toFixed(3) : dash}</div><div className="n">from surface pressure</div></div>
-        <div className="metric"><div className="k">Thin-airfoil theory</div><div className="v" id="mThin">{result && result.cl_thin != null ? result.cl_thin.toFixed(3) : dash}</div><div className="n">quick sanity check</div></div>
-        <div className="metric"><div className="k">Drag Cd (error only)</div><div className="v" id="mCd">{result ? result.cd.toFixed(4) : dash}</div><div className="n">ideal value is 0</div></div>
-        <div className="metric"><div className="k">Solve time</div><div className="v" id="mMs">{result ? `${result.solve_ms.toFixed(1)} ms` : dash}</div><div className="n">measured on the server</div></div>
+        <div className="metric"><div className="k">Lift coefficient Cl</div><div className="v" id={`${idp}mCl`}>{result ? result.cl.toFixed(3) : dash}</div><div className="n">from surface pressure</div></div>
+        <div className="metric">
+          <div className="k">Thin-airfoil theory</div>
+          <div className="v" id={`${idp}mThin`}>{result && result.cl_thin != null ? result.cl_thin.toFixed(3) : custom ? 'n/a' : dash}</div>
+          <div className="n">{custom ? 'not an airfoil code' : 'quick sanity check'}</div>
+        </div>
+        <div className="metric">
+          <div className="k">Drag Cd {noDrag ? '' : '(error only)'}</div>
+          <div className="v" id={`${idp}mCd`}>{result ? (noDrag ? 'not shown' : result.cd.toFixed(4)) : dash}</div>
+          <div className="n">{noDrag ? 'inviscid flow has no drag' : 'ideal value is 0'}</div>
+        </div>
+        <div className="metric"><div className="k">Solve time</div><div className="v" id={`${idp}mMs`}>{result ? `${result.solve_ms.toFixed(1)} ms` : dash}</div><div className="n">measured on the server</div></div>
       </div>
     </section>
   );
@@ -51,7 +61,7 @@ export function PipelineCard() {
     <section className="card">
       <h2>Project pipeline and what is real in this prototype</h2>
       <ol className="steps">
-        <li className="done"><b>Demo ✓</b>layout, controls, Cp field, Cl checks</li>
+        <li className="done"><b>Demo ✓</b>layout, controls, Cp field, Cl checks, draw-any-shape</li>
         <li><b>Verify</b>code review, 3 known issues</li>
         <li><b>Train</b>NNfoil on CPU (small meshes)</li>
         <li><b>Validate</b>PINN vs FVM error tables</li>
@@ -59,7 +69,8 @@ export function PipelineCard() {
       <ul className="plain">
         <li><b>Real now:</b> airfoil geometry, panel solver (Python backend), Cp field and curve, Cl from pressure, thin-airfoil check, Mach correction, reference-file overlay with RMS error, timing.</li>
         <li><b>Stand-in:</b> the solver itself (PINN replaces it). Mach uses the Prandtl–Glauert rule, an approximation of the compressible Euler flow NNfoil solves.</li>
-        <li><b>Not built yet:</b> PINN backend, training history, shape list from trained models, UIUC shapes.</li>
+        <li><b>Built since:</b> any closed shape (draw it, pick a preset or import a UIUC <code>.dat</code> file in the Draw section), a road under the shape, the animated flow view.</li>
+        <li><b>Still to come (Plan C):</b> the PINN lab with trained cases next to the finite-volume reference, and the PINN solver behind the same controls.</li>
       </ul>
       <div className="hint">Scope: inviscid, subsonic flow. A fast screening tool that complements, not replaces, high-fidelity CFD.</div>
     </section>

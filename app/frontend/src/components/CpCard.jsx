@@ -1,12 +1,13 @@
 import { useRef } from 'react';
 import { cssVar, useCanvasDraw } from '../hooks/useCanvasDraw.js';
 
-function drawCp(g, w, h, result, reference) {
+function drawCp(g, w, h, result, reference, pinned) {
   if (!result) return;
   const m = { l: 46, r: 14, t: 12, b: 34 };
   const s = result.surface;
   const cps = s.cp.slice();
   if (reference) reference.points.forEach((p) => cps.push(p[2]));
+  if (pinned) pinned.surface.cp.forEach((c) => cps.push(c));
   const lo = Math.min(-1, Math.floor((Math.min(...cps) - 0.1) * 2) / 2);
   const hi = 1.5;
   const X = (x) => m.l + x * (w - m.l - m.r);
@@ -42,6 +43,21 @@ function drawCp(g, w, h, result, reference) {
   g.fillText('Cp (suction is up)', 0, 0);
   g.restore();
 
+  if (pinned) {
+    // the pinned result as a grey dashed ghost, behind the live curves
+    const side = (flag) => pinned.surface.cx.map((x, i) => [x, pinned.surface.cp[i], pinned.surface.upper[i]]).filter((q) => q[2] === flag).sort((a, b) => a[0] - b[0]);
+    g.save();
+    g.setLineDash([6, 4]);
+    g.strokeStyle = cssVar('--muted');
+    g.lineWidth = 1.6;
+    for (const arr of [side(true), side(false)]) {
+      g.beginPath();
+      arr.forEach((q, i) => (i ? g.lineTo(X(q[0]), Y(q[1])) : g.moveTo(X(q[0]), Y(q[1]))));
+      g.stroke();
+    }
+    g.restore();
+  }
+
   const up = [];
   const lw = [];
   s.cx.forEach((x, i) => (s.upper[i] ? up : lw).push([x, s.cp[i]]));
@@ -64,22 +80,23 @@ function drawCp(g, w, h, result, reference) {
   }
 }
 
-export default function CpCard({ result, reference }) {
+export default function CpCard({ result, reference, pinned = null, idp = '' }) {
   const ref = useRef(null);
-  useCanvasDraw(ref, (w) => Math.max(260, Math.min(360, w * 0.45)), (g, w, h) => drawCp(g, w, h, result, reference), [result, reference]);
+  useCanvasDraw(ref, (w) => Math.max(260, Math.min(360, w * 0.45)), (g, w, h) => drawCp(g, w, h, result, reference, pinned), [result, reference, pinned]);
   const c = reference && result?.comparison;
   return (
     <section className="card">
       <h2>Surface pressure distribution</h2>
       <div>
-        <canvas id="cp" ref={ref} aria-label="Cp versus chord position" role="img" />
+        <canvas id={`${idp}cp`} ref={ref} aria-label="Cp versus chord position" role="img" />
       </div>
       <div className="legend">
         <span><i style={{ background: 'var(--up)' }} />upper surface</span>
         <span><i style={{ background: 'var(--lo)' }} />lower surface</span>
-        <span><i style={{ background: 'transparent', border: '1.5px solid var(--ref)' }} />reference (FVM)</span>
+        {reference && <span><i style={{ background: 'transparent', border: '1.5px solid var(--ref)' }} />reference (FVM)</span>}
+        {pinned && <span><i style={{ background: 'transparent', border: '1.5px dashed var(--muted)' }} />pinned: {pinned.label}</span>}
       </div>
-      <div className="status" id="cmpStatus" role="status">
+      <div className="status" id={`${idp}cmpStatus`} role="status">
         {c && c.rms !== null && (
           <>
             Difference vs {reference.name}: <b>RMS {c.rms.toFixed(3)}</b>, max {c.max.toFixed(3)} ({c.n} points). Only meaningful when airfoil,

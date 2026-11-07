@@ -38,15 +38,15 @@ export function AirfoilCard({ presets, code, custom, message, onPreset, onCustom
   );
 }
 
-export function FlowCard({ alpha, mach, onAlpha, onMach }) {
+export function FlowCard({ alpha, mach, onAlpha, onMach, idp = '', title = '3 · Flow conditions', hint = 'Subsonic only (Ma < 0.7). Reference data was computed at 4° and Mach 0.4.' }) {
   return (
     <section className="card">
-      <h2>3 · Flow conditions</h2>
-      <label className="field" htmlFor="alpha">Angle of attack <span className="val" id="alphaV">{alpha.toFixed(1)}°</span></label>
-      <input type="range" id="alpha" min="-10" max="12" step="0.5" value={alpha} onChange={(e) => onAlpha(+e.target.value)} />
-      <label className="field" htmlFor="mach" style={{ marginTop: 14 }}>Mach number <span className="val" id="machV">{mach.toFixed(2)}</span></label>
-      <input type="range" id="mach" min="0" max="0.7" step="0.05" value={mach} onChange={(e) => onMach(+e.target.value)} />
-      <div className="hint">Subsonic only (Ma &lt; 0.7). Reference data was computed at 4° and Mach 0.4.</div>
+      <h2>{title}</h2>
+      <label className="field" htmlFor={`${idp}alpha`}>Angle of attack <span className="val" id={`${idp}alphaV`}>{alpha.toFixed(1)}°</span></label>
+      <input type="range" id={`${idp}alpha`} min="-10" max="12" step="0.5" value={alpha} onChange={(e) => onAlpha(+e.target.value)} />
+      <label className="field" htmlFor={`${idp}mach`} style={{ marginTop: 14 }}>Mach number <span className="val" id={`${idp}machV`}>{mach.toFixed(2)}</span></label>
+      <input type="range" id={`${idp}mach`} min="0" max="0.7" step="0.05" value={mach} onChange={(e) => onMach(+e.target.value)} />
+      <div className="hint">{hint}</div>
     </section>
   );
 }

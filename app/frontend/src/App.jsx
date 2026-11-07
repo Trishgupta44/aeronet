@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { getAirfoils, getSampleReference, getSolvers, parseReference } from './api.js';
 import { AirfoilCard, FlowCard, ReferenceCard, SolverCard } from './components/ControlCards.jsx';
-import CpCard from './components/CpCard.jsx';
-import FlowCanvas, { DEFAULT_LAYERS, FlowStage, HERO_LAYERS, prefersReducedMotion } from './components/FlowCanvas.jsx';
-import { ComparisonCard, PipelineCard, ResultsCard, TrainingCard } from './components/InfoCards.jsx';
+import CaseView from './components/CaseView.jsx';
+import DrawSection from './components/DrawSection.jsx';
+import { DEFAULT_LAYERS, FlowStage, HERO_LAYERS, prefersReducedMotion } from './components/FlowCanvas.jsx';
+import { ComparisonCard, PipelineCard, TrainingCard } from './components/InfoCards.jsx';
 import CardGrid from './components/CardGrid.jsx';
 import Hero from './components/Hero.jsx';
 import Section from './components/Section.jsx';
@@ -40,9 +41,10 @@ export default function App() {
   const [reference, setReference] = useState(null);
   const [refStatus, setRefStatus] = useState({ kind: '', text: '' });
   const [layers, setLayers] = useState(DEFAULT_LAYERS);
+  const [drawLayers, setDrawLayers] = useState(DEFAULT_LAYERS);
   const [paused, setPaused] = useState(prefersReducedMotion);
 
-  const { result, error } = useSolve({ solver, code, alpha, mach, reference });
+  const { result, error } = useSolve({ kind: 'naca', solver, code, alpha, mach, reference });
 
   useEffect(() => {
     getSolvers().then(setSolvers).catch(() => {});
@@ -98,7 +100,7 @@ export default function App() {
 
   const cards = [
     { title: 'Explore', href: '#explore', thumb: <ExploreThumb />, text: 'Pick an airfoil, set the angle and Mach number, and watch the pressure field and lift update.' },
-    { title: 'Draw', href: '#draw', thumb: <DrawThumb />, text: 'Sketch any closed 2D shape and get its flow. The drawing pad arrives in the next milestone.' },
+    { title: 'Draw', href: '#draw', thumb: <DrawThumb />, text: 'Sketch any closed 2D shape with a mouse, pen or finger, or pick a car, a bird wing or a UIUC airfoil file, and get its flow.' },
     { title: 'PINN Lab', href: '#pinn', thumb: <LabThumb />, text: 'Trained neural solutions next to the finite-volume reference. They appear here once the runs are exported.' },
     { title: 'Results', href: '#results', thumb: <ResultsThumb />, text: 'What is measured, what is quoted from papers and what is still to be done, side by side.' },
   ];
@@ -175,18 +177,13 @@ export default function App() {
               <ReferenceCard status={refStatus} onLoadSample={loadSample} onClear={onClear} onFile={onFile} />
             </aside>
             <div className="stack">
-              <FlowCanvas result={result} layers={layers} onLayersChange={setLayers} paused={paused} onPausedChange={setPaused} />
-              <ResultsCard result={result} />
-              <CpCard result={result} reference={reference} />
+              <CaseView result={result} reference={reference} layers={layers} onLayersChange={setLayers} paused={paused} onPausedChange={setPaused} />
             </div>
           </div>
         </Section>
 
         <Section id="draw" band eyebrow="Any closed shape" title="Draw">
-          <div className="placeholder">
-            The drawing pad is not built yet. The backend already solves any closed outline (<code>POST /api/solve_shape</code>) and serves a shape
-            library (<code>GET /api/shapes</code>); the pad and the library cards come in the next milestone.
-          </div>
+          <DrawSection layers={drawLayers} onLayersChange={setDrawLayers} paused={paused} onPausedChange={setPaused} />
         </Section>
 
         <Section id="pinn" eyebrow="Neural solver" title="PINN Lab">

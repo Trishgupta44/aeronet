@@ -259,3 +259,32 @@ ul.plain li { margin: 4px 0; }
 .hero-flow .flow-base { opacity: .6; }
 .hero-flow .flow-overlay { pointer-events: none; }
 .hero { --hero-h: clamp(520px, 78vh, 760px); min-height: var(--hero-h); }
+
+/* draw section */
+.pen { cursor: crosshair; touch-action: pan-y; }
+.pen.armed { touch-action: none; }
+.check { display: flex; align-items: flex-start; gap: 8px; margin-top: 12px; font-size: 14px; cursor: pointer; }
+.check input { margin-top: 3px; accent-color: var(--accent); }
+.hint-inline { color: var(--muted); font-size: 12.5px; }
+.dim { opacity: .5; }
+.seg button.plain[aria-pressed] { background: var(--card); }
+.shape-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; margin-top: 14px; }
+.shape-card { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 6px; background: var(--card); color: var(--heading); cursor: pointer;
+  border: 1px solid var(--line); border-radius: var(--radius); font: 500 12px/1.2 var(--font-body); }
+.shape-card span { color: var(--ink); }
+.shape-card:hover { border-color: var(--heading); }
+.shape-card[aria-pressed="true"] { border-color: var(--heading); box-shadow: inset 0 0 0 1px var(--heading); background: color-mix(in srgb, var(--heading) 7%, var(--card)); }
+.shape-card:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.padstatus { margin-top: 12px; display: grid; gap: 6px; }
+.padstatus p { margin: 0; }
+.msg { font-size: 13.5px; color: var(--muted); }
+.msg--err { color: #b3261e; font-weight: 600; }
+.msg--ok { color: var(--ok); }
+.msg--info { color: var(--ink); }
+.msg--warn { color: #7a5200; background: #fff4d6; border-left: 3px solid #e0a100; padding: 6px 10px; border-radius: var(--radius); }
+.pill { font-size: 13px; line-height: 1.4; }
+.pill--note { background: #fff4d6; color: #5c3f00; border: 1px solid #ecc86a; border-radius: 14px; padding: 6px 12px; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .msg--err { color: #ff9b8a; }
+  :root:not([data-theme="light"]) .msg--warn, :root:not([data-theme="light"]) .pill--note { background: #3a2f12; color: #f2d58a; border-color: #6b5420; }
+}

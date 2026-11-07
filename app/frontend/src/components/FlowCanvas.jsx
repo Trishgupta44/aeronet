@@ -212,7 +212,7 @@ function drawTrails(g, ps, f, w, h) {
  * The layered picture: a base canvas (colour map, isobars, road, body, forces) and an overlay canvas with the animated
  * particles. `onProbe` (panel use only) receives pointer events over the field.
  */
-export function FlowStage({ result, layers, paused, hero = false, onProbe }) {
+export function FlowStage({ result, layers, paused, hero = false, onProbe, idp = '' }) {
   const baseRef = useRef(null);
   const overlayRef = useRef(null);
   const fieldRef = useRef(null);
@@ -313,7 +313,7 @@ export function FlowStage({ result, layers, paused, hero = false, onProbe }) {
 
   return (
     <>
-      <canvas ref={baseRef} className="flow-base" id={hero ? undefined : 'field'} role={hero ? undefined : 'img'}
+      <canvas ref={baseRef} className="flow-base" id={hero ? undefined : `${idp}field`} role={hero ? undefined : 'img'}
         aria-label={hero ? undefined : 'Pressure coefficient field around the shape'} aria-hidden={hero ? 'true' : undefined} />
       <canvas ref={overlayRef} className="flow-overlay" aria-hidden="true" onPointerMove={handle} onPointerLeave={handle} />
     </>
@@ -321,7 +321,7 @@ export function FlowStage({ result, layers, paused, hero = false, onProbe }) {
 }
 
 /** The explorer's field card: layer toggles, the stage, hover probe, colour bar and pause / fps controls. */
-export default function FlowCanvas({ result, layers, onLayersChange, paused, onPausedChange }) {
+export default function FlowCanvas({ result, layers, onLayersChange, paused, onPausedChange, idp = '', children, footer }) {
   const [probe, setProbe] = useState(null);
   const [fps, setFps] = useState(null);
 
@@ -349,12 +349,13 @@ export default function FlowCanvas({ result, layers, onLayersChange, paused, onP
           ))}
         </div>
         <div className="flow-run">
-          {fps !== null && layers.particles && <span className="fps" id="fps" title="Animation frames per second">{fps} fps</span>}
+          {fps !== null && layers.particles && <span className="fps" id={`${idp}fps`} title="Animation frames per second">{fps} fps</span>}
           <button type="button" className="btn" aria-pressed={paused} onClick={() => onPausedChange(!paused)}>{paused ? 'Play' : 'Pause'}</button>
         </div>
       </div>
       <div className="canvas-box flow-box">
-        <FlowStage result={result} layers={layers} paused={paused} onProbe={setProbe} />
+        <FlowStage result={result} layers={layers} paused={paused} onProbe={children ? undefined : setProbe} idp={idp} />
+        {children}
         {probe && (
           <div className="probe" style={{ left: Math.min(probe.left + 14, 9999), top: probe.top + 14 }} role="status">
             <span>Cp</span><b>{probe.cp.toFixed(2)}</b>
@@ -365,10 +366,11 @@ export default function FlowCanvas({ result, layers, onLayersChange, paused, onP
       </div>
       <div className="cbar">
         <span>−2 suction</span>
-        <div className="bar" id="bar" style={{ background: gradientCss() }} />
+        <div className="bar" id={`${idp}bar`} style={{ background: gradientCss() }} />
         <span>+1 stagnation</span>
       </div>
       <div className="hint">Idealized potential flow (inviscid, no separation or wake). Isobars: Cp from −1.5 to 0.75, dashed where suction.</div>
+      {footer}
     </section>
   );
 }

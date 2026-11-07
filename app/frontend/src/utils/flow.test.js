@@ -3,6 +3,7 @@ import { cmap, gradientCss, STOPS } from './colormap.js';
 import { ISO_LEVELS, isoLines, isoSegments } from './contours.js';
 import { sampleField, sampleVelocity, toGrid, toWorld } from './field.js';
 import { createParticles, mulberry32, respawn, stepParticles } from './particles.js';
+import { autoClose, chaikin, mirrorClosed, processStroke, surfaceCsv, thin, toDat } from './outline.js';
 
 // 18 x 10 grid in the app window: cp = x at every cell centre, uniform flow u = 1, v = 0. `holes` lists [i, j] cells to null.
 function fixture(holes = []) {
@@ -124,5 +125,58 @@ describe('colour map (new stops)', () => {
     const css = gradientCss();
     expect(css).toContain('rgb(247,247,244) 66.66');
     expect(css.match(/rgb\(/g)).toHaveLength(8);
+  });
+});
+
+describe('outline helpers', () => {
+  it('chaikin on a square gives 16 points (two passes, closed polygon)', () => {
+    const sq = [[0, 0], [1, 0], [1, 1], [0, 1]];
+    const out = chaikin(sq);
+    expect(out).toHaveLength(16);
+    expect(out[0][0]).toBeCloseTo(0.375, 9); // first pass gives (0.25, 0) and (0.75, 0); the second cuts between them
+  });
+  it('chaikin with zero passes returns a copy', () => {
+    const sq = [[0, 0], [1, 0], [1, 1]];
+    expect(chaikin(sq, 0)).toEqual(sq);
+  });
+  it('thin drops points closer than minDist to the last kept one', () => {
+    expect(thin([[0, 0], [0.001, 0], [0.1, 0]], 0.01)).toEqual([[0, 0], [0.1, 0]]);
+    expect(thin([], 0.01)).toEqual([]);
+  });
+  it('mirrorClosed reflects the stroke about y = 0 and walks back', () => {
+    expect(mirrorClosed([[0, 0.1], [1, 0.2]])).toEqual([[0, 0.1], [1, 0.2], [1, -0.2], [0, -0.1]]);
+  });
+  it('autoClose drops trailing points that sit on the start, and reports the gap', () => {
+    const r = autoClose([[0, 0], [1, 0], [1, 1], [0.001, 0.001]], 0.02);
+    expect(r.points).toEqual([[0, 0], [1, 0], [1, 1]]);
+    expect(r.gap).toBeCloseTo(Math.hypot(0.001, 0.001), 9);
+    const open = autoClose([[0, 0], [1, 0], [1, 1]], 0.02);
+    expect(open.points).toHaveLength(3);
+    expect(open.gap).toBeCloseTo(Math.SQRT2, 9);
+  });
+  it('processStroke rejects a tiny scribble and accepts a loop (mirror mode folds the stroke into the upper half)', () => {
+    const tiny = processStroke([[0, 0], [0.01, 0.01], [0.02, 0]], { mirror: false });
+    expect(tiny.error).toMatch(/bigger loop/i);
+    const circle = Array.from({ length: 60 }, (_, k) => [0.5 + 0.3 * Math.cos((k / 60) * 6.2832), 0.2 * Math.sin((k / 60) * 6.2832)]);
+    const ok = processStroke(circle, { mirror: false });
+    expect(ok.error).toBeUndefined();
+    expect(ok.points.length).toBeGreaterThanOrEqual(8);
+    const half = Array.from({ length: 30 }, (_, k) => [(k / 29) * 0.9 + 0.05, 0.12 * Math.sin((k / 29) * Math.PI) - 0.02]); // dips below 0 at the ends
+    const m = processStroke(half, { mirror: true });
+    expect(m.error).toBeUndefined();
+    const ys = m.points.map((p) => p[1]);
+    expect(Math.max(...ys)).toBeGreaterThan(0.05);
+    expect(Math.min(...ys)).toBeLessThan(-0.05);
+  });
+  it('toDat writes a name line plus n + 1 rows (the outline is closed)', () => {
+    const lines = toDat([[1, 0], [0.5, 0.1], [0, 0], [0.5, -0.1]], 'blob').trim().split('\n');
+    expect(lines[0]).toBe('blob');
+    expect(lines).toHaveLength(1 + 4 + 1);
+    expect(lines[1]).toBe(lines[lines.length - 1]);
+    expect(lines[2].trim().split(/\s+/).map(Number)).toEqual([0.5, 0.1]);
+  });
+  it('surfaceCsv writes x, y, cp and an upper flag', () => {
+    const r = { surface: { cx: [0.5], cy: [0.1], cp: [-0.3], upper: [true] } };
+    expect(surfaceCsv(r)).toBe('x,y,cp,upper\n0.500000,0.100000,-0.300000,1\n');
   });
 });

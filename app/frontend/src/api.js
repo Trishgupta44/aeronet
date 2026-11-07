@@ -28,3 +28,7 @@ export const getAirfoils = () => request('/api/airfoils');
 export const getSampleReference = () => request('/api/reference/sample');
 export const parseReference = (text, name) => request('/api/reference/parse', { method: 'POST', body: JSON.stringify({ text, name }) });
 export const solve = (body, signal) => request('/api/solve', { method: 'POST', body: JSON.stringify(body), signal });
+export const solveShape = (body, signal) => request('/api/solve_shape', { method: 'POST', body: JSON.stringify(body), signal });
+export const getShapes = () => request('/api/shapes');
+export const parseDat = (text, name) => request('/api/shapes/parse_dat', { method: 'POST', body: JSON.stringify({ text, name }) });
+export const getPolar = (body, signal) => request('/api/polar', { method: 'POST', body: JSON.stringify(body), signal });
