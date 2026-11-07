@@ -58,12 +58,36 @@ class SolveResponse(BaseModel):
     surface: SurfaceData
     cl: float
     cd: float
-    cl_thin: float
+    cl_thin: float | None = Field(None, description="Thin-airfoil Cl; null for drawn shapes (no camber line)")
     beta: float
     solve_ms: float = Field(..., description="Time spent inside the solver (server side)")
     total_ms: float = Field(..., description="Time to build the whole response (server side)")
     field: FieldData | None = None
     comparison: Comparison | None = None
+    ground_y: float | None = Field(None, description="Height of the road line when ground effect is on")
+
+
+class ShapeSolveRequest(BaseModel):
+    points: list[tuple[float, float]] = Field(..., min_length=8, max_length=4000, description="Closed outline (x, y), any size")
+    alpha: float = Field(4.0, ge=-20, le=20, description="Angle of attack in degrees")
+    mach: float = Field(0.0, ge=0.0, le=0.7, description="Free-stream Mach number (subsonic only)")
+    lifting: bool = Field(True, description="Apply the Kutta condition (off for bluff bodies)")
+    ground: float | None = Field(None, ge=0.02, le=1.0, description="Gap between the lowest body point and the road, in chords")
+    n_panels: int = Field(200, ge=40, le=400, description="Panels around the outline")
+    grid_width: int = Field(0, ge=0, le=400, description="Pressure-field grid width in cells; 0 = no field")
+    reference: list[Point] | None = Field(None, max_length=20000, description="Reference Cp points to compare with")
+
+
+class ShapeInfo(BaseModel):
+    chord: float = Field(..., description="Length of the outline along x before scaling to 1")
+    thickness: float = Field(..., description="Height range after scaling to length 1")
+    area: float
+    n_input: int
+
+
+class ShapeSolveResponse(SolveResponse):
+    shape: ShapeInfo
+    warnings: list[str] = []
 
 
 class ParseRequest(BaseModel):

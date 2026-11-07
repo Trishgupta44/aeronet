@@ -14,14 +14,19 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from . import __version__
-from .compare import compare_cp, parse_reference, thin_airfoil_cl
+from .compare import compare_cp, compare_cp_nearest, parse_reference, thin_airfoil_cl
 from .field import field_grid
+from .panel import PanelSolution, solve_xy
+from .shapes import prepare_shape
 from .schemas import (
     AirfoilPreset,
     Comparison,
     FieldData,
     ParseRequest,
     ReferenceData,
+    ShapeInfo,
+    ShapeSolveRequest,
+    ShapeSolveResponse,
     SolveRequest,
     SolveResponse,
     SolverInfo,
@@ -45,6 +50,26 @@ app.add_middleware(
 
 def _points(arr: np.ndarray) -> list[tuple[float, float, float]]:
     return [(float(x), float(y), float(c)) for x, y, c in arr]
+
+
+def _response_fields(sol: PanelSolution, grid_width: int, comparison: Comparison | None, t0: float) -> dict:
+    """Fields shared by /api/solve and /api/solve_shape."""
+    g = sol.geom
+    field = FieldData(**field_grid(sol, grid_width)) if grid_width > 0 else None
+    return dict(
+        n_panels=sol.n,
+        x=sol.X.tolist(),
+        y=sol.Y.tolist(),
+        surface=SurfaceData(cx=g.cx.tolist(), cy=g.cy.tolist(), cp=sol.cp.tolist(), upper=sol.upper.tolist()),
+        cl=sol.cl,
+        cd=sol.cd,
+        beta=sol.beta,
+        solve_ms=sol.ms,
+        total_ms=(perf_counter() - t0) * 1000.0,
+        field=field,
+        comparison=comparison,
+        ground_y=sol.ground_y,
+    )
 
 
 @app.get("/api/health")
@@ -73,31 +98,42 @@ def solve(req: SolveRequest) -> SolveResponse:
         raise HTTPException(status_code=409, detail=str(e))
 
     sol = solver.solve(req.code, req.alpha, req.mach, req.n_half)
-    g = sol.geom
-
     comparison = None
     if req.reference:
         comparison = Comparison(**compare_cp(sol, np.asarray(req.reference, dtype=float)))
-
-    field = FieldData(**field_grid(sol, req.grid_width)) if req.grid_width > 0 else None
 
     return SolveResponse(
         solver=req.solver,
         code=req.code,
         alpha=req.alpha,
         mach=req.mach,
-        n_panels=sol.n,
-        x=sol.X.tolist(),
-        y=sol.Y.tolist(),
-        surface=SurfaceData(cx=g.cx.tolist(), cy=g.cy.tolist(), cp=sol.cp.tolist(), upper=sol.upper.tolist()),
-        cl=sol.cl,
-        cd=sol.cd,
         cl_thin=thin_airfoil_cl(sol.airfoil, req.alpha, req.mach),
-        beta=sol.beta,
-        solve_ms=sol.ms,
-        total_ms=(perf_counter() - t0) * 1000.0,
-        field=field,
-        comparison=comparison,
+        **_response_fields(sol, req.grid_width, comparison, t0),
+    )
+
+
+@app.post("/api/solve_shape", response_model=ShapeSolveResponse)
+def solve_shape(req: ShapeSolveRequest) -> ShapeSolveResponse:
+    """Panel solution for a closed outline of any shape (see roadmap section 5.6)."""
+    t0 = perf_counter()
+    try:
+        X, Y, info, warnings = prepare_shape(req.points, n=req.n_panels, lifting=req.lifting)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    sol = solve_xy(X, Y, req.alpha, req.mach, lifting=req.lifting, ground=req.ground)
+    comparison = None
+    if req.reference:
+        comparison = Comparison(**compare_cp_nearest(sol, np.asarray(req.reference, dtype=float)))
+
+    return ShapeSolveResponse(
+        solver="panel",
+        code="custom",
+        alpha=req.alpha,
+        mach=req.mach,
+        cl_thin=None,
+        shape=ShapeInfo(**info),
+        warnings=warnings,
+        **_response_fields(sol, req.grid_width, comparison, t0),
     )
 
 
