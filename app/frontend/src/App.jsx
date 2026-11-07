@@ -4,6 +4,13 @@ import { AirfoilCard, FlowCard, ReferenceCard, SolverCard } from './components/C
 import CpCard from './components/CpCard.jsx';
 import FieldCard from './components/FieldCard.jsx';
 import { ComparisonCard, PipelineCard, ResultsCard, TrainingCard } from './components/InfoCards.jsx';
+import CardGrid from './components/CardGrid.jsx';
+import Hero from './components/Hero.jsx';
+import Section from './components/Section.jsx';
+import SiteFooter from './components/SiteFooter.jsx';
+import SiteHeader from './components/SiteHeader.jsx';
+import { DrawThumb, ExploreThumb, LabThumb, ResultsThumb } from './components/Thumbs.jsx';
+import { HEADLINE } from './data/headline.js';
 import { useSolve } from './hooks/useSolve.js';
 import { checkNacaCode } from './utils/naca.js';
 
@@ -87,45 +94,112 @@ export default function App() {
     if (params.has('sample')) loadSample(); // ?sample opens the page with the reference overlay loaded
   }, [loadSample]);
 
-  return (
-    <div className="wrap">
-      <header>
-        <h1>AeroNet</h1>
-        <span className="badge">PROTOTYPE</span>
-      </header>
-      <p className="sub">Airfoil flow explorer: pick a shape and angle of attack, see the pressure field and lift instantly.</p>
-      <div className="notice">
-        <b>Read this first.</b> This page shows how the final demo will look and behave. The solver running here (in the Python backend) is a
-        classical <b>panel method</b> (real physics, no neural network) standing in for the trained PINN. On Day 5 of the plan, the PINN results
-        replace it; the layout, controls and checks stay the same.
-      </div>
-      {error && (
-        <div className="notice error-banner" role="alert">
-          {error}
-          {error.startsWith('Cannot reach') && (
-            <>
-              {' '}Start the backend: <code>uvicorn aeronet.main:app --port 8000</code> (from <code>app/backend</code>).
-            </>
-          )}
-        </div>
-      )}
+  const cards = [
+    { title: 'Explore', href: '#explore', thumb: <ExploreThumb />, text: 'Pick an airfoil, set the angle and Mach number, and watch the pressure field and lift update.' },
+    { title: 'Draw', href: '#draw', thumb: <DrawThumb />, text: 'Sketch any closed 2D shape and get its flow. The drawing pad arrives in the next milestone.' },
+    { title: 'PINN Lab', href: '#pinn', thumb: <LabThumb />, text: 'Trained neural solutions next to the finite-volume reference. They appear here once the runs are exported.' },
+    { title: 'Results', href: '#results', thumb: <ResultsThumb />, text: 'What is measured, what is quoted from papers and what is still to be done, side by side.' },
+  ];
 
-      <div className="layout">
-        <aside className="stack">
-          <SolverCard solvers={solvers} value={solver} onChange={setSolver} />
-          <AirfoilCard presets={presets} code={code} custom={custom} message={customMsg} onPreset={onPreset} onCustom={onCustom} />
-          <FlowCard alpha={alpha} mach={mach} onAlpha={setAlpha} onMach={setMach} />
-          <ReferenceCard status={refStatus} onLoadSample={loadSample} onClear={onClear} onFile={onFile} />
-        </aside>
-        <main className="stack">
-          <FieldCard result={result} />
-          <ResultsCard result={result} />
-          <CpCard result={result} reference={reference} />
-          <ComparisonCard result={result} />
-          <TrainingCard />
-          <PipelineCard />
-        </main>
-      </div>
-    </div>
+  return (
+    <>
+      <SiteHeader />
+      <Hero />
+      <main>
+        <Section
+          id="about"
+          band
+          eyebrow="An airfoil flow explorer"
+          title="We are AeroNet"
+          aside={
+            <>
+              <p>
+                AeroNet shows how air moves around a wing section. Pick a shape and an angle, and see the pressure field, the lift and how a
+                neural solver compares with classical methods. It is a screening tool: inviscid, subsonic and honest about what it does not do.
+              </p>
+              <a className="button button--primary" href="#results">About the project</a>
+            </>
+          }
+        >
+          <div className="about-numbers">
+            <div className="bignum">
+              <div className="n">{HEADLINE.pinnError.value}</div>
+              <p className="l">{HEADLINE.pinnError.label}</p>
+              <span className="tag tag--measured">{HEADLINE.pinnError.tag}</span>
+              <span className="src">{HEADLINE.pinnError.source}</span>
+            </div>
+            <div className="bignum">
+              <div className="n">{result ? `${result.solve_ms.toFixed(1)} ms` : '–'}</div>
+              <p className="l">solve time of the panel method for the case shown below, on this machine</p>
+              <span className="tag tag--measured">measured now</span>
+              <span className="src">timed inside the backend for every request</span>
+            </div>
+            <div className="bignum">
+              <div className="n">{HEADLINE.mesh.value}</div>
+              <p className="l">{HEADLINE.mesh.label}</p>
+              <span className="tag tag--measured">{HEADLINE.mesh.tag}</span>
+              <span className="src">{HEADLINE.mesh.source}</span>
+            </div>
+          </div>
+        </Section>
+
+        <Section id="explore" eyebrow="Airfoil flow explorer" title="Explore">
+          <div className="notice">
+            <b>Read this first.</b> This page shows how the final demo will look and behave. The solver running here (in the Python backend) is a
+            classical <b>panel method</b> (real physics, no neural network) standing in for the trained PINN. When the PINN results are exported,
+            they replace it; the layout, controls and checks stay the same.
+          </div>
+          {error && (
+            <div className="notice error-banner" role="alert">
+              {error}
+              {error.startsWith('Cannot reach') && (
+                <>
+                  {' '}Start the backend: <code>uvicorn aeronet.main:app --port 8000</code> (from <code>app/backend</code>).
+                </>
+              )}
+            </div>
+          )}
+          <div className="layout">
+            <aside className="stack">
+              <SolverCard solvers={solvers} value={solver} onChange={setSolver} />
+              <AirfoilCard presets={presets} code={code} custom={custom} message={customMsg} onPreset={onPreset} onCustom={onCustom} />
+              <FlowCard alpha={alpha} mach={mach} onAlpha={setAlpha} onMach={setMach} />
+              <ReferenceCard status={refStatus} onLoadSample={loadSample} onClear={onClear} onFile={onFile} />
+            </aside>
+            <div className="stack">
+              <FieldCard result={result} />
+              <ResultsCard result={result} />
+              <CpCard result={result} reference={reference} />
+            </div>
+          </div>
+        </Section>
+
+        <Section id="draw" band eyebrow="Any closed shape" title="Draw">
+          <div className="placeholder">
+            The drawing pad is not built yet. The backend already solves any closed outline (<code>POST /api/solve_shape</code>) and serves a shape
+            library (<code>GET /api/shapes</code>); the pad and the library cards come in the next milestone.
+          </div>
+        </Section>
+
+        <Section id="pinn" eyebrow="Neural solver" title="PINN Lab">
+          <div className="results-stack">
+            <div className="placeholder">Trained cases appear here once the PINN runs are exported. Nothing is shown now on purpose: there is no fake data on this page.</div>
+            <TrainingCard />
+          </div>
+        </Section>
+
+        <Section id="overview" band eyebrow="Four ways in" title="What you can do">
+          <CardGrid items={cards} />
+        </Section>
+
+        <Section id="results" eyebrow="Evidence" title="Results">
+          <div className="results-stack">
+            <ComparisonCard result={result} />
+            <PipelineCard />
+          </div>
+        </Section>
+      </main>
+      <SiteFooter />
+    </>
   );
 }

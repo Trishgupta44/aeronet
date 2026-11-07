@@ -7,7 +7,7 @@ export function ResultsCard({ result }) {
       <h2>Results</h2>
       <div className="metrics">
         <div className="metric"><div className="k">Lift coefficient Cl</div><div className="v" id="mCl">{result ? result.cl.toFixed(3) : dash}</div><div className="n">from surface pressure</div></div>
-        <div className="metric"><div className="k">Thin-airfoil theory</div><div className="v" id="mThin">{result ? result.cl_thin.toFixed(3) : dash}</div><div className="n">quick sanity check</div></div>
+        <div className="metric"><div className="k">Thin-airfoil theory</div><div className="v" id="mThin">{result && result.cl_thin != null ? result.cl_thin.toFixed(3) : dash}</div><div className="n">quick sanity check</div></div>
         <div className="metric"><div className="k">Drag Cd (error only)</div><div className="v" id="mCd">{result ? result.cd.toFixed(4) : dash}</div><div className="n">ideal value is 0</div></div>
         <div className="metric"><div className="k">Solve time</div><div className="v" id="mMs">{result ? `${result.solve_ms.toFixed(1)} ms` : dash}</div><div className="n">measured on the server</div></div>
       </div>
