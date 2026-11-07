@@ -13,7 +13,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from . import __version__, pinn_data
+from . import __version__, compressibility, pinn_data
 from .compare import compare_cp, compare_cp_nearest, parse_reference, thin_airfoil_cl
 from .field import field_grid
 from .geometry import naca4
@@ -36,6 +36,7 @@ from .schemas import (
     SolveResponse,
     SolverInfo,
     SurfaceData,
+    Validity,
 )
 from .solvers import PRESETS, SOLVERS, get_solver
 
@@ -76,6 +77,7 @@ def _response_fields(sol: PanelSolution, grid_width: int, comparison: Comparison
         field=field,
         comparison=comparison,
         ground_y=sol.ground_y,
+        validity=Validity(**compressibility.validity(sol.cp, sol.beta)),
     )
 
 

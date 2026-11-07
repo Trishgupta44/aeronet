@@ -49,6 +49,17 @@ class Comparison(BaseModel):
     n: int
 
 
+class Validity(BaseModel):
+    """Is the inviscid subsonic model still valid for this solution? (computed from the panel Cp, see compressibility.py)"""
+
+    cp_min: float = Field(..., description="Lowest surface Cp of this solution (Mach-corrected)")
+    cp0_min: float = Field(..., description="The same, incompressible (Mach 0)")
+    cp_crit: float | None = Field(None, description="Cp* at this free-stream Mach: local flow is sonic when Cp reaches it; null at Mach 0")
+    supersonic: bool = Field(..., description="True when cp_min < cp_crit")
+    mach_crit_pg: float | None = Field(None, description="Critical Mach number with the Prandtl-Glauert rule (the one the solver uses)")
+    mach_crit_kt: float | None = Field(None, description="Critical Mach number with the Karman-Tsien rule (usually lower)")
+
+
 class SolveResponse(BaseModel):
     solver: str
     code: str
@@ -67,6 +78,7 @@ class SolveResponse(BaseModel):
     field: FieldData | None = None
     comparison: Comparison | None = None
     ground_y: float | None = Field(None, description="Height of the road line when ground effect is on")
+    validity: Validity | None = None
 
 
 class ShapeSolveRequest(BaseModel):

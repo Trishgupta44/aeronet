@@ -78,6 +78,47 @@ function drawCp(g, w, h, result, reference, pinned) {
       g.stroke();
     });
   }
+  // Cp* (where the local flow becomes sonic): dashed line, drawn only when it falls inside the plot range.
+  const star = result.validity?.cp_crit;
+  if (star != null && star >= lo && star <= hi) {
+    g.strokeStyle = cssVar('--flow-stagnation');
+    g.lineWidth = 1.4;
+    g.setLineDash([7, 5]);
+    g.beginPath();
+    g.moveTo(m.l, Y(star));
+    g.lineTo(w - m.r, Y(star));
+    g.stroke();
+    g.setLineDash([]);
+    g.fillStyle = cssVar('--flow-stagnation');
+    g.textAlign = 'right';
+    g.fillText(`Cp* = ${star.toFixed(2)} (sonic)`, w - m.r - 4, Y(star) - 5);
+  }
+}
+
+const f2 = (v) => (v == null ? '–' : v.toFixed(2));
+
+/** Validity of the inviscid subsonic model, from the panel solution (all numbers computed by the backend). */
+function ValidityNote({ validity, mach }) {
+  if (!validity) return null;
+  const { supersonic, cp_min: cpMin, cp_crit: star, mach_crit_pg: pg, mach_crit_kt: kt } = validity;
+  return (
+    <div className="validity">
+      {supersonic && (
+        <div className="notice error-banner" role="alert">
+          <b>Local flow is supersonic here: the inviscid subsonic model is not valid.</b> At Mach {mach.toFixed(2)} the lowest Cp ({f2(cpMin)}) is below
+          the sonic value Cp* ({f2(star)}). Expect a shock in the real flow; treat the Cl and Cp shown here as unreliable.
+        </div>
+      )}
+      <p className="hint">
+        <span className="tag tag--measured">computed</span>{' '}
+        Lowest Cp {f2(cpMin)}{star != null && <>, sonic Cp* {f2(star)} at Mach {mach.toFixed(2)}</>}. Critical Mach number for this shape and angle:{' '}
+        <b>{pg != null ? pg.toFixed(2) : 'above 0.99'}</b> with the Prandtl–Glauert rule (the one this solver uses)
+        {kt != null && <>, <b>{kt.toFixed(2)}</b> with the Kármán–Tsien rule</>}.
+        Prandtl–Glauert gives the weakest growth of suction with Mach number, so its critical Mach number is the optimistic one; the true value
+        is probably closer to the lower number or below it.
+      </p>
+    </div>
+  );
 }
 
 export default function CpCard({ result, reference, pinned = null, idp = '' }) {
@@ -95,7 +136,9 @@ export default function CpCard({ result, reference, pinned = null, idp = '' }) {
         <span><i style={{ background: 'var(--lo)' }} />lower surface</span>
         {reference && <span><i style={{ background: 'transparent', border: '1.5px solid var(--ref)' }} />reference (FVM)</span>}
         {pinned && <span><i style={{ background: 'transparent', border: '1.5px dashed var(--muted)' }} />pinned: {pinned.label}</span>}
+        {result?.validity?.cp_crit != null && <span><i style={{ background: 'var(--flow-stagnation)', borderRadius: 0, height: 2, verticalAlign: 3 }} />sonic Cp* (dashed)</span>}
       </div>
+      {result && <ValidityNote validity={result.validity} mach={result.mach} />}
       <div className="status" id={`${idp}cmpStatus`} role="status">
         {c && c.rms !== null && (
           <>
