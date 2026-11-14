@@ -74,49 +74,106 @@ links and checks `Path.exists()`. Run it and fix the failures.
 
 ---
 
-### Task D2: Doc builder plus the project report (.docx)
+### Task D2: Doc builder plus the project report (.docx), in the institute's capstone template
 
-**Goal:** the 20-page report (JIIT format: 6 pages of front matter plus 14 of body), regenerated from
-source in one command.
+**Goal:** the project report, built from source in one command, following the **official template the user
+supplied** (`docs/DOCS NEEDED FOR MAJOR/final capstone project report template (1).pdf`, 2 pages) and the
+**cover page sample** (`.../Sample front page MajorProject-Jaypee Institute of Information Technology.docx.pdf`).
+These two PDFs replace the older "20 pages" outline: follow them, not 1WP §5. The folder is untracked on purpose
+(institute documents): do not commit it.
 
-**Step 1 (ask first):** ask the user: "The README lists `deliverables/` (progress report, project report,
-slides, synopsis, papers guide), but the folder is not in the repo. Do you have the originals somewhere?"
-If yes, copy them into `deliverables/originals/`, keep their wording and structure, and update only the
-numbers, results and new sections. If no, write the sources from scratch as below.
+**Step 1 (ask first, but do not block):** the earlier question about original deliverables is partly answered: the
+user added the template and the cover sample. Still ask: "Do you also have older drafts of the report, slides,
+synopsis or progress report?" and list the details only the user can give (below). If the answer is not available,
+**build everything with clearly marked `[FILL IN]` fields and say so**; never invent names, numbers, signatures or
+a supervisor.
+
+**Details only the user can provide** (ask once, use fields until then): student names and enrolment numbers
+(cover, certificate, declaration, team roles); course name, semester and year (the sample reads "Major Project 2,
+B.Tech CS&E/IT, 8th Sem, 2025 - 2026"); the department name line; the supervisor's and the HOD's names; the
+institute logo image (put it at `docs/deliverables_src/jiit_logo.png` if provided, otherwise leave a labelled
+box); the Turnitin plagiarism report; the department's PO/PSO list; proof of outcome (paper, abstract, patent,
+product).
+
+**Template structure to implement (from the PDF):**
+- **Preliminary pages (Roman numerals, bottom-centre):** cover page (institute format as in the sample:
+  "Jaypee Institute of Information Technology, Noida", department line, logo, **Major Project Title:** ..., a
+  two-column table "Enrol. No. / Name of Student", course name, programme, semester, year); certificate (signed by
+  supervisor and HOD); declaration of originality; acknowledgement; abstract (**one page**: problem, methodology,
+  key results, societal relevance); table of contents; list of figures; list of tables; list of abbreviations.
+- **Chapter 1 Introduction:** 1.1 Background; 1.2 Problem definition and objectives (3-5 clear, measurable goals);
+  1.3 Social and environmental relevance; 1.4 Project plan (1.4.1 work breakdown structure, 1.4.2 timeline,
+  1.4.3 roles and responsibilities, 1.4.4 challenges and risk management); 1.5 Scope and limitations.
+- **Chapter 2 Literature survey:** 2.1 critical review; 2.2 summary table (previous works by methodology / data /
+  cost / limitations: Sun et al., NeuralFoil, NNfoil, classical panel methods, XFoil, FVM); 2.3 research gaps.
+- **Chapter 3 System design and methodology:** 3.1 design considerations (economic, environmental, social,
+  political, ethical, health and safety, sustainability); 3.2 methodology (block diagram of the system: NNfoil, run
+  folders, export, API, UI; flowcharts for training and for the draw-a-shape path); 3.3 modelling (Euler equations,
+  Cp and Cl, panel method, Prandtl-Glauert, mesh transformation, loss); 3.4 tool and technique selection (why
+  PyTorch on CPU, FastAPI, React, the panel method as the baseline, no GPU).
+- **Chapter 4 Implementation and testing:** 4.1 development details (steps, screenshots from
+  `docs/milestones/img/`); 4.2 experimental setup (the laptop CPU, versions, threads); 4.3 test cases (input vs
+  expected output tables: the measured checks from `docs/verification.md`, the research tests, the API and
+  frontend tests, the circle Cp-extremes check, the force-convention check, the freestream zero-residual check);
+  4.4 safety measures (cyber security: offline-capable, no user data collected, the repo is private because NNfoil
+  has no licence, input validation, 409 for the unavailable solver, no path traversal in case ids).
+- **Chapter 5 Results and discussion:** 5.1 result analysis (E1-E6 tables and figures from
+  `docs/milestones/M3-pinn-results.md` and `results/summary.csv`; every number through the placeholder
+  mechanism); 5.2 comparison against the objectives of Chapter 1 (met / partly met / not met, honestly: for example
+  the stop rule failed, the drift is unsolved, one cold start collapsed); 5.3 economic analysis (bill of materials:
+  a laptop already owned, no GPU, free software; training seconds measured; a simple cost-benefit against a cloud
+  GPU hour, labelled as an estimate with the assumptions stated); 5.4 comparison with existing solutions and
+  standards (NeuralFoil, XFoil, FVM times quoted from the paper, with the paper's caveat).
+- **Chapter 6 Conclusion and future scope:** 6.1 summary of achievements; 6.2 impact on society, environmental
+  sustainability, ethical issues and compliance (including the licence issue and honest-reporting practice);
+  6.3 limitations; 6.4 future work (a Kutta-type constraint or panel prior for the drift, parametric angle of
+  attack, 3D, viscous extension, shape optimisation).
+- **References (IEEE; at least 50% from the last five years).** Use `WebSearch`/`WebFetch` to find REAL recent
+  papers (PINNs for aerodynamics and CFD, airfoil surrogates, NNfoil, NeuralFoil, Sun et al.); confirm each exists
+  (authors, year, venue, DOI) before citing; never invent a reference; tell the user which ones were only checked by
+  abstract and must be read by the team before submission. Count the share from 2021 or later and report it.
+- **Appendices and annexure:** appendices (hyperparameters, setup, short code listings only); annexure: plagiarism
+  report (placeholder page: "attach the Turnitin summary"), **PO/PSO mapping** (a table linking the technical tasks
+  to programme outcomes: use the standard 12 graduate-attribute POs as a draft and mark "confirm against your
+  department's PO/PSO list"), outcome of the report (what exists: the working app, the repository, the milestone
+  reports; placeholders for paper or patent proof), a **sustainability statement** section, and **team roles**
+  (Student A/B/C: `[FILL IN]`).
+
+**Formatting (from the template, enforce in the builder):** A4, white; Times New Roman; 12 pt body, 14 pt
+sub-headings, 16 pt chapter titles; line spacing 1.5; margins 2 cm on all sides; page numbers bottom-centre,
+**Roman for the preliminary pages and Arabic for the chapters** (separate Word sections with
+`w:pgNumType w:fmt="lowerRoman"` and `"decimal"`, a PAGE field in the footer, chapter pages restart at 1). Binding
+(navy blue with gold embossing, no spiral) is physical: mention it in the handoff note, not in the file.
 
 **Files:** create `research/docs_build/*.py`, `research/tests/test_docs_build.py` and
-`docs/deliverables_src/report.md`; output `deliverables/2_Project_Report_AeroNet.docx`.
+`docs/deliverables_src/report.md` (one Markdown source; chapters as `#`, sections `##`, sub-sections `###`); output
+`deliverables/2_Project_Report_AeroNet.docx`. Add `python-docx` and `python-pptx` to `research/requirements.txt`.
 
 **Builder notes (verified in a scratch run):**
-- `build_docx` supports `#`, `##` and `###`; paragraphs (consecutive lines join; justified); `- ` bullets
-  and `1. ` lists (styles `List Bullet` and `List Number`); pipe tables (skip the `---` row, bold first row,
-  style `Table Grid`); `![caption](path)` (picture 15 cm wide, centred caption); `\pagebreak`; `**bold**`.
-  Margins are 2.54 cm, Normal style Times New Roman 12.
-- Add `python-docx` and `python-pptx` to `research/requirements.txt`.
-
-**Report content (`report.md`):** the outline in 1WP §5: abstract → introduction → literature review (the
-Sun et al., NeuralFoil and NNfoil contrast) → background (Euler, Cp and Cl, CST, mesh transform and
-Jacobian) → method (NNfoil and the AeroNet additions: CPU fixes, positivity, O-grid, validation pipeline,
-demo) → verification (the table from `docs/verification.md`, including finding 3 confirmed: `-0.5β` vs the
-correct `-2β`) → results (E1–E5 tables from `results/tables.md`, and figures 1–7) → discussion (positivity
-effect, sparse-mesh claim, why Prandtl-Glauert fails on the cylinder, Mach provenance) → limits → future
-work → references (IEEE, only papers someone actually opened) → appendix (hyperparameters, setup). The
-front matter is a cover, certificate, declaration, acknowledgement, contents and list of figures, each
-followed by `\pagebreak`. Leave team names, roll numbers and the guide as `[NAME]` fields **only on the
-cover and certificate pages**, and tell the user to fill them.
+- `build_docx` supports `#`, `##` and `###`; paragraphs (consecutive lines join; justified); `- ` bullets and
+  `1. ` lists (styles `List Bullet` and `List Number`); pipe tables (skip the `---` row, bold first row, style
+  `Table Grid`); `![caption](path)` (picture up to 15 cm wide, centred caption, numbered "Figure n.m"); `\pagebreak`;
+  `**bold**`. Table captions "Table n.m". Build the lists of figures and tables from the captions (a plain list is
+  acceptable; a Word TOC field that updates on open is better: insert it and tell the user to press F9 to update).
+- Numbers come in through the `{{exp|method|mesh|col[|case]}}` placeholders; a missing or empty number is a hard
+  error.
 
 **Tests (`test_docs_build.py`):**
-- `fill` replaces a known placeholder with `0.0123`; a missing row and an empty cell raise a KeyError that
-  names both.
-- `build_docx` on a small sample (heading, table, bullet, image, page break) gives 1 table and 1 inline
-  shape, and the table cell text equals the filled number.
+- `fill` replaces a known placeholder with `0.0123`; a missing row and an empty cell raise a KeyError that names
+  both.
+- `build_docx` on a small sample (heading, table, bullet, image, page break) gives 1 table and 1 inline shape, and
+  the table cell text equals the filled number.
+- The generated document has: A4 page size, all four margins 2 cm, Normal font Times New Roman 12 pt, line spacing
+  1.5, a Roman-numbered section followed by a decimal one, chapter titles at 16 pt.
 - `fmt(1450,"train_s") == "24.2 min"` and `fmt(90,"train_s") == "90 s"`.
 
-**Acceptance:** `research/.venv/Scripts/python research/docs_build/build_all.py --check` prints `0 missing
-numbers`. The report builds; opened in Word, it is 18–22 pages. Export a PDF with Word (or LibreOffice:
-`soffice --headless --convert-to pdf`) to `deliverables/pdf/`.
+**Acceptance:** `research/.venv/Scripts/python research/docs_build/build_all.py --check` prints `0 missing numbers`.
+The report builds; converted to PDF (`soffice --headless --convert-to pdf` if LibreOffice exists, else tell the
+user) it shows the preliminary pages numbered i, ii, ... and the chapters numbered 1, 2, ...; every `[FILL IN]` is
+listed by the check so the user knows what remains. Also write `docs/deliverables_src/FILL_IN_CHECKLIST.md` listing
+every field and attachment the user must supply.
 
-**Commit:** `feat(docs): Markdown-to-docx builder and project report with generated numbers`.
+**Commit:** `feat(docs): Markdown-to-docx builder and project report in the institute template`.
 
 ---
 
