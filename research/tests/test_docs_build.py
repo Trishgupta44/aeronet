@@ -165,3 +165,24 @@ def test_toc_field_and_static_lists(tmp_path):
     build_docx.build(md, out, tmp_path, pages={"Chapter 1: A": "1"})
     xml = Document(str(out)).element.xml
     assert "TOC " in xml and "Chapter 1: A" in xml and "1.1 B" in xml
+
+
+def test_report_source_has_no_missing_numbers_and_builds(tmp_path):
+    """The committed report source: every placeholder resolves, and the template's chapters are all there."""
+    src = nf.REPO / "docs" / "deliverables_src" / "report.md"
+    text = src.read_text(encoding="utf8")
+    rows = nf.load_rows()
+    assert nf.check(text, rows) == []
+    filled = nf.fill(text, rows)
+    assert "{{E2" not in filled.split("# Appendix C")[0]
+    info = build_docx.build(filled, tmp_path / "report.docx", nf.REPO)
+    titles = [t for lv, t in info["headings"] if lv in (0, 1)]
+    for need in ("Certificate", "Declaration of Originality", "Acknowledgement", "Abstract", "Table of Contents",
+                 "List of Figures", "List of Tables", "List of Abbreviations", "Chapter 1: Introduction",
+                 "Chapter 2: Literature Survey", "Chapter 3: System Design and Methodology",
+                 "Chapter 4: Implementation and Testing", "Chapter 5: Results and Discussion",
+                 "Chapter 6: Conclusion and Future Scope", "References", "Annexure"):
+        assert need in titles, need
+    assert len(info["figures"]) >= 20 and len(info["tables"]) >= 15
+    doc = Document(str(tmp_path / "report.docx"))
+    assert len(doc.sections) == 2

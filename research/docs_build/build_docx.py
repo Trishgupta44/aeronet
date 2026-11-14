@@ -208,6 +208,7 @@ def _strip_md(s):
 
 
 def parse(md_text: str) -> list[dict]:
+    md_text = re.sub(r"<!--.*?-->", "", md_text, flags=re.S)
     lines = md_text.replace("\r\n", "\n").split("\n")
     blocks, para, i = [], [], 0
 
@@ -374,6 +375,8 @@ def _label_of(heading_text, current):
     m = re.match(r"^Appendix\s+([A-Z])\b", heading_text)
     if m:
         return m.group(1)
+    if heading_text.startswith("Annexure"):
+        return "AN"
     return current
 
 
@@ -387,7 +390,7 @@ def _widths(rows):
     return [Cm(TEXT_WIDTH_CM * x / tot) for x in w]
 
 
-def _toc_paragraph(doc, level, text, page, first_instr=None, last=False):
+def _toc_paragraph(doc, level, text, page, first_instr=None, last=False, bold_top=True):
     p = doc.add_paragraph()
     pf = p.paragraph_format
     pf.line_spacing = 1.15
@@ -398,7 +401,7 @@ def _toc_paragraph(doc, level, text, page, first_instr=None, last=False):
     if first_instr:
         _add_field_runs(p, first_instr)
     r = p.add_run(text + ("\t" + page if page else ""))
-    if level == 1:
+    if level == 1 and bold_top:
         r.font.bold = True
     if last:
         _field_end(p)
@@ -523,7 +526,16 @@ def build(md_text: str, out_path, base_dir=".", pages: dict | None = None) -> di
             p.alignment = WD_ALIGN_PARAGRAPH.CENTER
             p.paragraph_format.keep_with_next = True
             p.paragraph_format.line_spacing = 1.0
-            p.add_run().add_picture(str(path), width=Cm(width_cm))
+            src = str(path)
+            if w > 1800:  # keep the .docx small: 1800 px is 300 dpi at 15 cm
+                import io
+                with Image.open(path) as im:
+                    im = im.convert("RGB").resize((1800, round(h * 1800 / w)), Image.LANCZOS)
+                    buf = io.BytesIO()
+                    im.save(buf, "PNG", optimize=True)
+                    buf.seek(0)
+                    src = buf
+            p.add_run().add_picture(src, width=Cm(width_cm))
             cp_ = doc.add_paragraph(style="Caption")
             add_inline(cp_, f"{b['label']}: {b['caption']}")
         elif t == "eq":
@@ -532,8 +544,8 @@ def build(md_text: str, out_path, base_dir=".", pages: dict | None = None) -> di
             p.paragraph_format.tab_stops.add_tab_stop(Cm(TEXT_WIDTH_CM / 2), WD_TAB_ALIGNMENT.CENTER)
             p.paragraph_format.tab_stops.add_tab_stop(Cm(TEXT_WIDTH_CM), WD_TAB_ALIGNMENT.RIGHT)
             p.paragraph_format.line_spacing = 1.15
-            r = p.add_run("\t" + b["text"])
-            r.font.italic = False
+            p.add_run("\t")
+            add_inline(p, b["text"])
             p.add_run("\t" + b["label"])
         elif t == "code":
             for ln in b["lines"] or [""]:
@@ -587,7 +599,7 @@ def build(md_text: str, out_path, base_dir=".", pages: dict | None = None) -> di
             if not entries:
                 p = doc.add_paragraph("(none)")
             for k, (lab, cap) in enumerate(entries):
-                _toc_paragraph(doc, 1, f"{lab}: {_strip_md(cap)}", pages.get(lab, ""))
+                _toc_paragraph(doc, 1, f"{lab}: {_strip_md(cap)}", pages.get(lab, ""), bold_top=False)
         prev = b
     out = Path(out_path)
     out.parent.mkdir(parents=True, exist_ok=True)

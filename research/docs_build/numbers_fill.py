@@ -11,7 +11,7 @@ filled the same way:
 * ``E1R``: ``results/e1_rounds.csv`` (experiment ``E1R``, method as in the file, mesh = the round number, case as in
   the file, columns as in that file).
 
-Columns: any column of the row, plus the derived ``cl_err_pct`` (100 (cl - cl_ref) / cl_ref), ``cl_diff`` (cl - cl_ref)
+Columns: any column of the row, plus the derived ``train_h`` (train_s / 3600), ``cl_err_pct`` (100 (cl - cl_ref) / cl_ref), ``cl_diff`` (cl - cl_ref)
 and ``note:<key>`` (the number after ``key=`` in the notes cell). Append ``:N`` to force N decimals, for example
 ``rms_cp:3``. A mesh of ``-`` selects a row with an empty mesh.
 """
@@ -80,10 +80,14 @@ def split_col(column: str):
 
 def fmt(value, column: str, decimals: int | None = None) -> str:
     """Text for a number. rms/max/cd 4 decimals, cl 3, train_s ``N s`` below 120 else ``N.N min``, infer_ms ``N.NN ms``."""
-    v = _f(value)
     col, d = split_col(column)
+    if col in ("source", "method", "mesh", "case", "notes", "experiment", "mode", "run_id", "collapsed", "complete"):
+        return str(value).strip()
+    v = _f(value)
     if decimals is None:
         decimals = d
+    if col == "train_h":
+        return f"{v:.{2 if decimals is None else decimals}f} h"
     if col == "train_s" or col == "seconds":
         if decimals is not None:
             return f"{v:.{decimals}f} s"
@@ -125,6 +129,11 @@ def lookup(rows, exp, method, mesh, column, case=None, _ph=None):
     base, _ = split_col(column)
     if base.startswith("note:"):
         v = _note(r.get("notes", ""), base[5:])
+    elif base == "train_h":
+        t = (r.get("train_s") or "").strip()
+        if not t:
+            raise KeyError(f"{ph}: train_s is empty in the matching row")
+        v = _f(t) / 3600.0
     elif base in ("cl_err_pct", "cl_diff"):
         cl, ref = (r.get("cl") or "").strip(), (r.get("cl_ref") or "").strip()
         if not cl or not ref:
@@ -150,17 +159,30 @@ def resolve(ph_body: str, rows) -> str:
     return fmt(v, column)
 
 
+# fenced code blocks and HTML comments are shown as written: a placeholder inside them is an example, not a number
+_LITERAL = re.compile(r"(```.*?```|<!--.*?-->)", re.S)
+
+
+def _apply(text: str, fn) -> str:
+    parts = _LITERAL.split(text)
+    return "".join(p if i % 2 else PLACEHOLDER.sub(fn, p) for i, p in enumerate(parts))
+
+
 def fill(text: str, rows) -> str:
-    """Replace every placeholder; the first problem raises ``KeyError`` (see :func:`check`)."""
-    return PLACEHOLDER.sub(lambda m: resolve(m.group(1), rows), text)
+    """Replace every placeholder (outside code blocks and comments); the first problem raises ``KeyError``."""
+    return _apply(text, lambda m: resolve(m.group(1), rows))
 
 
 def check(text: str, rows) -> list[str]:
     """Every problem in ``text`` as a list of messages (empty when every placeholder resolves)."""
     errs = []
-    for m in PLACEHOLDER.finditer(text):
+
+    def one(m):
         try:
             resolve(m.group(1), rows)
         except (KeyError, ValueError) as e:
             errs.append(str(e.args[0]) if e.args else str(e))
+        return ""
+
+    _apply(text, one)
     return errs

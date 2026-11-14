@@ -65,7 +65,7 @@ def page_labels(pdf: Path, info: dict) -> dict:
     from pypdf import PdfReader
     pages = [[ln.strip() for ln in (p.extract_text() or "").splitlines()] for p in PdfReader(str(pdf)).pages]
     first_chapter = next((t for lv, t in info["headings"] if lv == 1), None)
-    main = next((i for i, ls in enumerate(pages) if ls and first_chapter and ls[0].startswith(first_chapter[:30])), None)
+    main = next((i for i, ls in enumerate(pages) if first_chapter and any(x.startswith(first_chapter[:30]) for x in ls[:3])), None)
     if main is None:
         return {}
 
@@ -75,13 +75,17 @@ def page_labels(pdf: Path, info: dict) -> dict:
     out = {}
 
     def find(text, rng, exact):
+        # front pages: the last exact match (the contents page itself also lists the title); others: the first
         key = re.sub(r"\s+", " ", text)
+        hit = None
         for i in rng:
             for ln in pages[i]:
                 ln = re.sub(r"\s+", " ", ln)
                 if (ln == key) if exact else ln.startswith(key[:38]):
-                    return label(i)
-        return None
+                    if not exact:
+                        return label(i)
+                    hit = label(i)
+        return hit
 
     for lv, t in info["headings"]:
         k = build_docx._strip_md(t)
