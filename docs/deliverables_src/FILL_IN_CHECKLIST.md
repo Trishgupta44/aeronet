@@ -6,28 +6,43 @@ signatures was invented. To list what is still open, run
 
     research/.venv/Scripts/python research/docs_build/build_all.py --check
 
-(it prints `0 missing numbers` and every remaining field). After editing `report.md`, rebuild with
+(it prints `0 missing numbers` and every remaining field). The slides and the four small documents have the same check:
+`build_pptx.py --check` and `build_misc_docs.py --check`. After editing a source, rebuild with
 `research/.venv/Scripts/python research/docs_build/build_all.py` (add `--pdf` to get the PDF and the page numbers of the
-contents lists; needs LibreOffice). The institute documents in `docs/DOCS NEEDED FOR MAJOR/` are not committed on purpose.
+contents lists; needs LibreOffice), then `build_pptx.py` and `build_misc_docs.py`. The institute documents in
+`docs/DOCS NEEDED FOR MAJOR/` are not committed on purpose.
 
-## 1. Details only the team can give
+## 0. Already filled, from `docs/deliverables_src/fields.json`
+
+Names, enrolment numbers, supervisor, department line, course, programme, semester, academic year and the lead area and
+contribution of each student are typed once in `fields.json` (read by every builder through `{{field:key}}` placeholders)
+and come from the team's own documents of 14 November 2026 (report, synopsis, log book, presentation), cross-checked with the
+mid-term report. To change one, edit `fields.json` and rebuild; an empty value turns back into a highlighted `[FILL IN]`.
+Check these once, because the builders cannot: the order of the three students on the cover (Arjun Awasthi, Pratyaksh
+Krishnna, Trish Gupta), the spelling of the supervisor's name (Ms Riya Goyal, Assistant Professor), the degree wording in
+the certificate ("Bachelor of Technology in Computer Science & Engineering", expanded from "B.Tech.") and the team roles
+(taken from the team's own report, Table 1.1; the test counts in that table were left out because they are older than the
+numbers in this report).
+
+## 1. Still missing (highlighted `[FILL IN]` in the documents)
 
 | Where | Field | Notes |
 |---|---|---|
-| Cover | Department line | The sample reads "Department of Computer Science & Engineering and IT" |
-| Cover | Logo | Save the institute logo as `docs/deliverables_src/jiit_logo.png` and rebuild; a labelled box stands in until then |
-| Cover, Certificate, Declaration, Acknowledgement, Annexure D | Student names and enrolment numbers | Delete the unused row if the team has fewer than three students |
-| Cover | Course name, programme, semester, academic year | The sample reads "Major Project 2", "B. Tech. CS&E / B.Tech IT", "8th Sem", "2025 - 2026"; the synopsis and mid-term report in the folder say 7th semester, so check which applies |
-| Certificate, Acknowledgement | Supervisor name and designation | The earlier synopsis and mid-term report name a supervisor; copy the exact spelling from there |
-| Certificate, Acknowledgement | HOD name | |
-| Certificate, Declaration | Dates, degree and programme text, signatures | Signature lines are blank on purpose; sign on the printed copy |
-| Declaration | AI-assistance wording | The mid-term report declared the use of an AI coding assistant; confirm the wording with the supervisor |
-| Acknowledgement | Anyone else to thank, names at the foot | |
-| Section 1.4.3 | One sentence per student on who led which work package | Must agree with Annexure D |
-| Section 5.3 | Purchase price of the laptop | Only if the department wants it counted; otherwise delete the field |
-| Annexure B | Programme specific outcomes (PSOs) and the mapping | The PO table is a **draft** of the standard 12 graduate attributes: confirm against your department's list |
-| Annexure D | What each student contributed | |
-| Title | "AeroNet: A Physics-Informed Neural Network Solver for Airfoil Aerodynamics" | Taken from the earlier synopsis; confirm it is the approved title |
+| Report, certificate | Name of the Head of the Department | Not named in any of the team's documents (they only say "Head of Department") |
+| Report, certificate and declaration | Dates | Written when the page is signed. Signature lines stay blank on purpose |
+| Report, cover | Institute logo | The team's own report has no logo image. Save the logo as `docs/deliverables_src/jiit_logo.png` and rebuild; a labelled box stands in until then |
+| Report, declaration | AI-assistance wording | The mid-term report declared the use of an AI coding assistant; confirm the wording with the supervisor |
+| Report, acknowledgement | Anyone else to thank | Delete the field if nobody |
+| Report, section 5.3 | Purchase price of the laptop | Only if the department wants it counted; otherwise delete the field |
+| Report, Annexure B | Programme specific outcomes (PSOs) and how the project meets each | The team's own report also leaves them blank. The PO table is a **draft** of the standard 12 graduate attributes: confirm against your department's list |
+| Report, Annexure A, C | Turnitin summary and proof of outcome | See section 2 |
+| Report, references | "Read every reference" reminder | See section 4 |
+| Synopsis, progress report | Date of submission, reporting period | |
+| Synopsis, progress report | Signatures and supervisor remarks | Signature sections are left for the printed copy |
+| Viva sheet | Panel or examiner, who answers which question | A plan the team has to decide (the log book says who led which area, not who answers which question) |
+
+The title "AeroNet: A Physics-Informed Neural Network Solver for Airfoil Aerodynamics" is the same in the synopsis, report,
+log book, presentation and mid-term report, so it is not listed.
 
 ## 2. Attachments
 

@@ -75,18 +75,23 @@ def page_labels(pdf: Path, info: dict) -> dict:
 
     out = {}
 
+    def first_text(i):
+        """The first line of page ``i`` that is not a bare page number."""
+        return next((re.sub(r"\s+", " ", ln) for ln in pages[i] if ln and not re.fullmatch(r"[ivxlc\d]+", ln)), "")
+
     def find(text, rng, exact):
-        # front pages: the last exact match (the contents page itself also lists the title); others: the first
+        # front pages: the page that STARTS with the title (the contents page also lists every title, with or without
+        # page numbers, so a line match alone would find the contents page); others: the first line that starts with it
         key = re.sub(r"\s+", " ", text)
-        hit = None
         for i in rng:
+            if exact:
+                if first_text(i) == key:
+                    return label(i)
+                continue
             for ln in pages[i]:
-                ln = re.sub(r"\s+", " ", ln)
-                if (ln == key) if exact else ln.startswith(key[:38]):
-                    if not exact:
-                        return label(i)
-                    hit = label(i)
-        return hit
+                if re.sub(r"\s+", " ", ln).startswith(key[:38]):
+                    return label(i)
+        return None
 
     for lv, t in info["headings"]:
         k = build_docx._strip_md(t)
