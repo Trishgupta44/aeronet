@@ -122,6 +122,16 @@ results) and a project with solid measured numbers. Deliver everything the exist
    not pinned (finding N22). Practical recipe for the demo and report: **stop at 3-5 rounds**; report the
    trajectory; test the candidate remedies in C11 (robust loop, periodic input, hard far field, a panel-method
    prior). 100x50 behaves better (seed-check runs were 5 rounds; the 20-round seed-0 run stayed stable).
+8i. **E6 result (measured, `results/e6_stop_rule.md`): the reference-free plateau stop rule does NOT work.** Replayed on
+   21 finished runs (6 development, 15 held-out incl. 6 brand-new 50x25 seeds): in the 3 held-out runs that drifted
+   late it never fired (0 of 3; 0 of 8 counting E1), because Cl and wall Cp never stay within the thresholds two
+   rounds in a row. It fired in 4 of 15 held-out runs, all non-drifting, with 0 bad stops (322.9 s saved): harmless,
+   not useful. The online confirmation run was cut off, so it is inconclusive (and that seed does not drift).
+   What does work as a *practice*: a fixed early stop. On the six held-out seeds, stopping at round 3, 4 or 5 gives Cp
+   RMS 0.027-0.033, 0.027-0.059 and 0.027-0.058, against 0.029-0.166 at round 20 (the round number comes from E1,
+   so it is a recipe derived on the development set and checked on the held-out seeds; round 4 on E1 already had one
+   run at 0.101, so it is not risk-free). Still open: a real fix for the circulation drift (Kutta-type constraint or a
+   panel-method prior), Plan C task C11, not started.
 8c. **The FVM Cp files are not stored in contour order.** Integrating Cl directly from them gives nonsense
    (0.355). Sort the points by angle about the centroid first (`metrics.order_contour`).
 9. **The "draw any shape" route works.** A prototype that resamples any closed curve and runs the panel
