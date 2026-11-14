@@ -1,0 +1,3 @@
+# Optional: viscous Cl/Cd estimate next to the inviscid result (aeronet/neural.py, POST /api/viscous).
+# NeuralFoil by Peter Sharpe, MIT licence. Pulls in AeroSandbox, CasADi and SciPy.
+neuralfoil>=0.3

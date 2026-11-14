@@ -31,7 +31,8 @@ def inside_body(X: np.ndarray, Y: np.ndarray, px: np.ndarray, py: np.ndarray) ->
     return inside
 
 
-def _cp_chunk(px, py, g, weights, freestream, beta, dtype):
+def _induced_chunk(px, py, g, weights, dtype):
+    """Velocity induced by all panels at the points (without the free stream)."""
     a_x, a_y, b_x, b_y = weights
     rx = px[:, None] - g.x0
     ry = py[:, None] - g.y0
@@ -41,19 +42,27 @@ def _cp_chunk(px, py, g, weights, freestream, beta, dtype):
     with np.errstate(divide="ignore", invalid="ignore"):
         us = np.log((xl * xl + yl * yl) / (xe * xe + yl * yl)) * dtype(1 / (4 * np.pi))
         vs = np.arctan2(yl * g.length, xl * xe + yl * yl) * dtype(1 / (2 * np.pi))  # angle from panel start to end
-    u = freestream[0] + us @ a_x + vs @ b_x
-    v = freestream[1] + us @ a_y + vs @ b_y
-    return (1.0 - (u * u + v * v)) / beta
+    return us @ a_x + vs @ b_x, us @ a_y + vs @ b_y
 
 
-def field_cp(sol: PanelSolution, px: np.ndarray, py: np.ndarray, dtype=np.float64, workers: int = 1) -> np.ndarray:
-    """Cp at arbitrary points (outside the body), including the Prandtl-Glauert factor.
+def _uv_chunk(px, py, g, weights, freestream, ground_y, dtype):
+    u, v = _induced_chunk(px, py, g, weights, dtype)
+    if ground_y is not None:  # image flow of the road: (u, -v) of the real flow at the mirrored point
+        ui, vi = _induced_chunk(px, dtype(2.0 * ground_y) - py, g, weights, dtype)
+        u, v = u + ui, v - vi
+    return freestream[0] + u, freestream[1] + v
 
+
+def field_uv(sol: PanelSolution, px: np.ndarray, py: np.ndarray, dtype=np.float64, workers: int = 1):
+    """Velocity (u, v) at arbitrary points (outside the body), in units of the free-stream speed.
+
+    These are the incompressible panel-method velocities; the Prandtl-Glauert factor only enters ``field_cp``.
     Same result as summing ``panel.influence`` over all panels, but faster: a unit source and a
     unit vortex on a panel both depend only on the two local terms ``us`` (log of the distance
     ratio) and ``vs`` (angle subtended by the panel), so the sums over the panels reduce to four
     matrix-vector products with per-panel weights. ``dtype=np.float32`` and ``workers > 1`` trade a
     little precision / extra threads for speed (used for the picture, not for the forces).
+    With a road (``sol.ground_y``) the image flow is added.
     """
     g = sol.geom
     g = type(g)(*(np.asarray(a, dtype=dtype) for a in (g.x0, g.y0, g.length, g.tx, g.ty, g.nx, g.ny, g.cx, g.cy)))
@@ -64,19 +73,31 @@ def field_cp(sol: PanelSolution, px: np.ndarray, py: np.ndarray, dtype=np.float6
     freestream = (dtype(sol.vx_inf), dtype(sol.vy_inf))
     px, py = np.asarray(px, dtype=dtype), np.asarray(py, dtype=dtype)
     spans = [slice(s, s + _CHUNK) for s in range(0, px.size, _CHUNK)]
-    job = lambda sl: _cp_chunk(px[sl], py[sl], g, weights, freestream, dtype(sol.beta), dtype)
+    job = lambda sl: _uv_chunk(px[sl], py[sl], g, weights, freestream, sol.ground_y, dtype)
     if workers > 1 and len(spans) > 1:
         with ThreadPoolExecutor(max_workers=workers) as pool:
             parts = list(pool.map(job, spans))
     else:
         parts = [job(sl) for sl in spans]
-    return np.concatenate(parts).astype(np.float64) if parts else np.empty(0)
+    if not parts:
+        return np.empty(0), np.empty(0)
+    return (np.concatenate([p[0] for p in parts]).astype(np.float64), np.concatenate([p[1] for p in parts]).astype(np.float64))
+
+
+def field_cp(sol: PanelSolution, px: np.ndarray, py: np.ndarray, dtype=np.float64, workers: int = 1) -> np.ndarray:
+    """Cp at arbitrary points (outside the body), including the Prandtl-Glauert factor."""
+    u, v = field_uv(sol, px, py, dtype=dtype, workers=workers)
+    return (1.0 - (u * u + v * v)) / sol.beta
 
 
 def field_grid(sol: PanelSolution, width: int) -> dict:
-    """Cp on a ``width`` x ``round(width / 1.8)`` grid of cell centres, ``None`` inside the body.
+    """Cp, u and v on a ``width`` x ``round(width / 1.8)`` grid of cell centres.
 
-    Values are row-major, first row at the top (y = YMAX), matching how the canvas is drawn.
+    Cells inside the body, and below the road when there is one, are ``None``. Values are row-major,
+    first row at the top (y = YMAX), matching how the canvas is drawn.
+
+    ``u`` and ``v`` are the incompressible velocity components in units of the free-stream speed;
+    ``cp`` includes the Prandtl-Glauert factor: cp = (1 - u^2 - v^2) / beta. All three are rounded to 3 decimals.
     """
     height = max(1, round(width / 1.8))
     xs = XMIN + (np.arange(width) + 0.5) / width * (XMAX - XMIN)
@@ -84,11 +105,20 @@ def field_grid(sol: PanelSolution, width: int) -> dict:
     gx, gy = np.meshgrid(xs, ys)
     px, py = gx.ravel(), gy.ravel()
 
-    inside = inside_body(sol.airfoil.x, sol.airfoil.y, px, py)
-    cp = np.full(px.size, np.nan)
-    cp[~inside] = field_cp(sol, px[~inside], py[~inside], dtype=np.float32, workers=_WORKERS)
-    values = np.round(cp, 3).astype(object)
-    values[np.isnan(cp)] = None
+    blocked = inside_body(sol.X, sol.Y, px, py)
+    if sol.ground_y is not None:
+        blocked |= py < sol.ground_y
+    free = ~blocked
+    u = np.full(px.size, np.nan)
+    v = np.full(px.size, np.nan)
+    u[free], v[free] = field_uv(sol, px[free], py[free], dtype=np.float32, workers=_WORKERS)
+    cp = (1.0 - (u * u + v * v)) / sol.beta
+
+    def out(a):
+        values = np.round(a, 3).astype(object)
+        values[np.isnan(a)] = None
+        return values.tolist()
+
     return {
         "width": int(width),
         "height": int(height),
@@ -96,5 +126,7 @@ def field_grid(sol: PanelSolution, width: int) -> dict:
         "xmax": XMAX,
         "ymin": YMIN,
         "ymax": YMAX,
-        "cp": values.tolist(),
+        "cp": out(cp),
+        "u": out(u),
+        "v": out(v),
     }

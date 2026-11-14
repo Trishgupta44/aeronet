@@ -13,19 +13,33 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from . import __version__
-from .compare import compare_cp, parse_reference, thin_airfoil_cl
+from . import __version__, compressibility, neural, optimize, pinn_data, tradeoff
+from .compare import compare_cp, compare_cp_nearest, parse_reference, thin_airfoil_cl
 from .field import field_grid
+from .geometry import naca4
+from .panel import PanelSolution, solve as panel_solve, solve_xy
+from .shapes import library, parse_dat, prepare_shape
 from .schemas import (
     AirfoilPreset,
+    DatData,
     Comparison,
     FieldData,
     ParseRequest,
+    PolarRequest,
+    PolarResponse,
     ReferenceData,
+    ShapeInfo,
+    ShapePreset,
+    ShapeSolveRequest,
+    ShapeSolveResponse,
     SolveRequest,
     SolveResponse,
     SolverInfo,
     SurfaceData,
+    OptimizeRequest,
+    Validity,
+    ViscousRequest,
+    ViscousResponse,
 )
 from .solvers import PRESETS, SOLVERS, get_solver
 
@@ -33,6 +47,8 @@ BACKEND_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = BACKEND_DIR / "data"
 FRONTEND_DIST = BACKEND_DIR.parent / "frontend" / "dist"
 SAMPLE_FILE = DATA_DIR / "reference_naca0012_200x100.dat"
+
+SHAPES = library()  # presets are built once, at import time
 
 app = FastAPI(title="AeroNet API", version=__version__, description="Airfoil flow solver (panel-method stand-in for the NNfoil PINN).")
 app.add_middleware(
@@ -45,6 +61,27 @@ app.add_middleware(
 
 def _points(arr: np.ndarray) -> list[tuple[float, float, float]]:
     return [(float(x), float(y), float(c)) for x, y, c in arr]
+
+
+def _response_fields(sol: PanelSolution, grid_width: int, comparison: Comparison | None, t0: float) -> dict:
+    """Fields shared by /api/solve and /api/solve_shape."""
+    g = sol.geom
+    field = FieldData(**field_grid(sol, grid_width)) if grid_width > 0 else None
+    return dict(
+        n_panels=sol.n,
+        x=sol.X.tolist(),
+        y=sol.Y.tolist(),
+        surface=SurfaceData(cx=g.cx.tolist(), cy=g.cy.tolist(), cp=sol.cp.tolist(), upper=sol.upper.tolist()),
+        cl=sol.cl,
+        cd=sol.cd,
+        beta=sol.beta,
+        solve_ms=sol.ms,
+        total_ms=(perf_counter() - t0) * 1000.0,
+        field=field,
+        comparison=comparison,
+        ground_y=sol.ground_y,
+        validity=Validity(**compressibility.validity(sol.cp, sol.beta)),
+    )
 
 
 @app.get("/api/health")
@@ -73,33 +110,110 @@ def solve(req: SolveRequest) -> SolveResponse:
         raise HTTPException(status_code=409, detail=str(e))
 
     sol = solver.solve(req.code, req.alpha, req.mach, req.n_half)
-    g = sol.geom
-    upper = g.cy >= sol.airfoil.camber(g.cx)
-
     comparison = None
     if req.reference:
         comparison = Comparison(**compare_cp(sol, np.asarray(req.reference, dtype=float)))
-
-    field = FieldData(**field_grid(sol, req.grid_width)) if req.grid_width > 0 else None
 
     return SolveResponse(
         solver=req.solver,
         code=req.code,
         alpha=req.alpha,
         mach=req.mach,
-        n_panels=sol.n,
-        x=sol.airfoil.x.tolist(),
-        y=sol.airfoil.y.tolist(),
-        surface=SurfaceData(cx=g.cx.tolist(), cy=g.cy.tolist(), cp=sol.cp.tolist(), upper=upper.tolist()),
-        cl=sol.cl,
-        cd=sol.cd,
         cl_thin=thin_airfoil_cl(sol.airfoil, req.alpha, req.mach),
-        beta=sol.beta,
-        solve_ms=sol.ms,
-        total_ms=(perf_counter() - t0) * 1000.0,
-        field=field,
-        comparison=comparison,
+        **_response_fields(sol, req.grid_width, comparison, t0),
     )
+
+
+@app.post("/api/solve_shape", response_model=ShapeSolveResponse)
+def solve_shape(req: ShapeSolveRequest) -> ShapeSolveResponse:
+    """Panel solution for a closed outline of any shape (see roadmap section 5.6)."""
+    t0 = perf_counter()
+    try:
+        X, Y, info, warnings = prepare_shape(req.points, n=req.n_panels, lifting=req.lifting)
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    sol = solve_xy(X, Y, req.alpha, req.mach, lifting=req.lifting, ground=req.ground)
+    comparison = None
+    if req.reference:
+        comparison = Comparison(**compare_cp_nearest(sol, np.asarray(req.reference, dtype=float)))
+
+    return ShapeSolveResponse(
+        solver="panel",
+        code="custom",
+        alpha=req.alpha,
+        mach=req.mach,
+        cl_thin=None,
+        shape=ShapeInfo(**info),
+        warnings=warnings,
+        **_response_fields(sol, req.grid_width, comparison, t0),
+    )
+
+
+@app.post("/api/polar", response_model=PolarResponse)
+def polar(req: PolarRequest) -> PolarResponse:
+    """Cl for a list of angles of attack (no field is computed)."""
+    if req.code is not None:
+        if req.ground is None and req.lifting:
+            sols = [panel_solve(req.code, a, req.mach, req.n_panels // 2) for a in req.alphas]
+        else:  # road and/or no Kutta condition: same NACA nodes through the generic solver
+            af = naca4(req.code, req.n_panels // 2)
+            sols = [solve_xy(af.x, af.y, a, req.mach, lifting=req.lifting, ground=req.ground, airfoil=af) for a in req.alphas]
+        cl_thin = [thin_airfoil_cl(s.airfoil, a, req.mach) for s, a in zip(sols, req.alphas)]
+    else:
+        try:
+            X, Y, _, _ = prepare_shape(req.points, n=req.n_panels, lifting=req.lifting)
+        except ValueError as e:
+            raise HTTPException(status_code=422, detail=str(e))
+        sols = [solve_xy(X, Y, a, req.mach, lifting=req.lifting, ground=req.ground) for a in req.alphas]
+        cl_thin = None
+    return PolarResponse(alpha=req.alphas, cl=[s.cl for s in sols], cl_thin=cl_thin)
+
+
+@app.post("/api/viscous", response_model=ViscousResponse)
+def solve_viscous(req: ViscousRequest) -> dict:
+    """NeuralFoil viscous Cl/Cd for a NACA airfoil, next to the inviscid panel result (optional dependency)."""
+    if not neural.available():
+        raise HTTPException(status_code=503, detail="NeuralFoil is not installed on this server (pip install -r requirements-viscous.txt).")
+    return neural.viscous(req.code, req.alpha, req.re, req.model_size)
+
+
+@app.post("/api/optimize")
+def optimize_shape(req: OptimizeRequest) -> dict:
+    """Shape a NACA 4-digit-family airfoil for the least suction at the target Cl (raises the critical Mach number). Inviscid."""
+    return optimize.optimise(req.target_cl, req.min_thickness, req.code)
+
+
+@app.get("/api/tradeoff")
+def get_tradeoff() -> dict:
+    """Accuracy (Cp RMS vs FVM 800x400) against cost (seconds on this laptop) for panel, PINN and FVM (read from results/)."""
+    try:
+        return tradeoff.tradeoff()
+    except (OSError, KeyError, ValueError) as e:
+        raise HTTPException(status_code=503, detail=f"Trade-off data is not available here: {e}")
+
+
+@app.get("/api/showdown")
+def get_showdown() -> dict:
+    """Same-mesh showdown: FVM vs PINN on each mesh, both against the FVM 800x400 reference (read from results/)."""
+    try:
+        return pinn_data.showdown()
+    except (OSError, KeyError, ValueError) as e:
+        raise HTTPException(status_code=503, detail=f"PINN results are not available here: {e}")
+
+
+@app.get("/api/shapes", response_model=list[ShapePreset])
+def list_shapes() -> list[dict]:
+    return SHAPES
+
+
+@app.post("/api/shapes/parse_dat", response_model=DatData)
+def parse_dat_file(req: ParseRequest) -> DatData:
+    """Read a UIUC Selig or Lednicer airfoil file into an outline for /api/solve_shape."""
+    try:
+        name, points = parse_dat(req.text)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return DatData(name=name or req.name, points=points)
 
 
 @app.post("/api/reference/parse", response_model=ReferenceData)

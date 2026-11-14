@@ -72,3 +72,21 @@ def compare_cp(sol: PanelSolution, ref: np.ndarray) -> dict:
         return {"rms": None, "max": None, "n": 0}
     err = pred[valid] - cp_ref[valid]
     return {"rms": float(np.sqrt(np.mean(err**2))), "max": float(np.max(np.abs(err))), "n": int(valid.sum())}
+
+
+def compare_cp_nearest(sol: PanelSolution, ref: np.ndarray) -> dict:
+    """RMS and maximum Cp difference, taking for each reference point the nearest panel centre.
+
+    Roadmap section 5.5 rule, used for drawn shapes (they have no camber line). Reference points with
+    0.02 <= x <= 0.98 are used.
+    """
+    if ref.size == 0:
+        return {"rms": None, "max": None, "n": 0}
+    x, y, cp_ref = ref[:, 0], ref[:, 1], ref[:, 2]
+    keep = (x >= 0.02) & (x <= 0.98)
+    if not keep.any():
+        return {"rms": None, "max": None, "n": 0}
+    g = sol.geom
+    d2 = (x[keep, None] - g.cx[None, :]) ** 2 + (y[keep, None] - g.cy[None, :]) ** 2
+    err = sol.cp[np.argmin(d2, axis=1)] - cp_ref[keep]
+    return {"rms": float(np.sqrt(np.mean(err**2))), "max": float(np.max(np.abs(err))), "n": int(keep.sum())}
