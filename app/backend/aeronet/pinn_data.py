@@ -20,7 +20,7 @@ import re
 
 import numpy as np
 
-from . import compressibility, pinn_cases
+from . import compressibility, config, pinn_cases
 
 CASE = {"shape": "NACA0012", "alpha_deg": 4.0, "mach": 0.4, "case_id": "NACA0012_a4"}
 REFERENCE_MESH = "800x400"
@@ -174,16 +174,17 @@ def _pinn_entry(rows, mesh: str, method: str, run_id: str) -> dict | None:
 def showdown() -> dict:
     """Everything the same-mesh showdown card needs (see roadmap feature 1)."""
     rows = _read_summary()
-    cases = {run_id: _case(run_id) for run_id in E2_RUNS.values()}
+    withheld = config.withhold_fvm_data()  # public deployments: the error numbers yes, NNfoil's FVM Cp curves no (it has no licence)
+    cases = {run_id: _case(run_id) for run_id in E2_RUNS.values()}  # in public mode the cases arrive without any FVM curve
     ref_points = next((c["reference"]["points"] for c in cases.values() if c and c.get("reference")), None)
-    if ref_points is None:
+    if ref_points is None and not withheld:
         raise ValueError("no exported PINN case with an FVM reference (run research/export_results.py)")
     meshes = []
     for mesh in MESHES:
         fvm_row = _summary_row(rows, "B0", "fvm", mesh)
         fvm = None
         if fvm_row is not None:
-            same = next((c["fvm_same_mesh"] for (m, _), rid in E2_RUNS.items() if m == mesh and (c := cases[rid]) and c.get("fvm_same_mesh")), None)
+            same = None if withheld else next((c["fvm_same_mesh"] for (m, _), rid in E2_RUNS.items() if m == mesh and (c := cases[rid]) and c.get("fvm_same_mesh")), None)
             fvm = {
                 "source": "measured",
                 "rms": _num(fvm_row["rms_cp"]),
@@ -199,8 +200,9 @@ def showdown() -> dict:
         "reference": {
             "label": f"FVM {REFERENCE_MESH}",
             "cl": _num(ref_row["cl"]) if ref_row else None,
-            "curve": _points_curve(ref_points),
+            "curve": None if withheld or ref_points is None else _points_curve(ref_points),
         },
+        "fvm_curves_withheld": withheld,
         "error_definition": "RMS and max |Cp - Cp_ref| at the reference points with 0.02 <= x/c <= 0.98, nearest wall point (research/metrics.py)",
         "meshes": meshes,
     }

@@ -11,7 +11,7 @@ from time import perf_counter
 import numpy as np
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from . import __version__, compressibility, config, limits, neural, optimize, pinn_cases, pinn_data, tradeoff
@@ -45,7 +45,7 @@ from .schemas import (
 from .solvers import PRESETS, get_solver, solver_infos
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent
-DATA_DIR = BACKEND_DIR / "data"
+DATA_DIR = pinn_cases.DATA_DIR  # app/backend/data, or AERONET_DATA_DIR (the public build points it at the stripped copy)
 FRONTEND_DIST = BACKEND_DIR.parent / "frontend" / "dist"
 SAMPLE_FILE = DATA_DIR / "reference_naca0012_200x100.dat"
 
@@ -221,12 +221,15 @@ def list_pinn_cases() -> list[dict]:
 
 
 @app.get("/api/pinn/cases/{case_id}")
-def get_pinn_case(case_id: str) -> FileResponse:
-    """One case (roadmap 5.7): surface Cp, reference, panel solution, metrics, timing, log, per-round snapshots and the flow field."""
+def get_pinn_case(case_id: str):
+    """One case (roadmap 5.7): surface Cp, reference, panel solution, metrics, timing, log, per-round snapshots and the flow field.
+    Public mode (AERONET_WITHHOLD_FVM_DATA=1): the same without the FVM Cp curves (``reference``, ``fvm_same_mesh`` points); the numbers stay."""
     try:
         path = pinn_cases.case_path(case_id)  # checked against the files that exist: no path can be reached from the id
     except KeyError as e:
         raise HTTPException(status_code=404, detail=str(e).strip("'\""))
+    if config.withhold_fvm_data():
+        return JSONResponse(pinn_cases.get_case(case_id))
     return FileResponse(path, media_type="application/json")
 
 
