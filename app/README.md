@@ -185,4 +185,4 @@ app/
 - Scope: inviscid, subsonic flow only. Inviscid theory has no stall, so lift keeps rising at large angles, and the drag shown for a lifting body is numerical error.
 - The solver runs on the server, so "Solve time" is the server-side time (the label says so).
 - The field is computed in single precision on the server (error about 3e-6 in Cp, invisible in the picture); forces and surface Cp use double precision.
-- The bundled reference data is a sample of NNfoil's FVM output (github.com/Cao-WenBo/NNfoil, Cao, Song and Zhang, arXiv 2401.08705; no licence file): keep the repository private and keep the credit if you share it.
+- The bundled reference data is a sample of NNfoil's FVM output (github.com/Cao-WenBo/NNfoil, Cao, Song and Zhang, arXiv 2401.08705; no licence file): shown with the author's permission (given by email; its repository has no licence file), so keep the credit, and see [`docs/DEPLOY.md`](../docs/DEPLOY.md) ("Licence") before publishing the NNfoil source code or data in a repository of your own.

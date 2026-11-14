@@ -47,6 +47,8 @@ cd ../backend && python -m uvicorn aeronet.main:app --port 8000
 `app/backend/.venv` is optional: any Python with `app/backend/requirements.txt` installed works (the system Python 3.13 was used
 for the backend tests). The PINN Lab needs no PyTorch: the trained cases are already exported to `app/backend/data/`.
 
+**Deploying** (a static demo, one container, the licence line for NNfoil's reference data, and the strict mode that withholds it): see [`docs/DEPLOY.md`](docs/DEPLOY.md).
+
 ## Quick start: the research
 
 From the repo root. Windows paths shown; on Linux or macOS use `bin/` instead of `Scripts/`.
