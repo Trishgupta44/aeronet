@@ -352,19 +352,26 @@ def _f(v, nd=4):
 
 
 def run_table_md(rows) -> str:
-    head = ("| run | pos | seed | rounds | stop round | Cp RMS at stop | Cp RMS final | best round (post-hoc) | best RMS (post-hoc) "
-            "| Cl at stop | Cl final | Cl ref | verdict |\n|---|---|---|---|---|---|---|---|---|---|---|---|---|\n")
+    head = ("| run | pos | seed | rounds good + failed | stop round | Cp RMS at stop | Cp RMS final | best round (post-hoc, FVM-informed, "
+            "reference only) | best RMS (post-hoc) | Cl at stop | Cl final | Cl ref | training s saved | closest approach to the rule | verdict |\n"
+            "|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|\n")
     out = []
     for r in rows:
         if r["stop_round"] is None:
             verdict = "never stops" + (" (drifted)" if r["drifted"] else " (no drift)")
-        elif r["bad_stop"]:
-            verdict = f"bad stop ({r['bad_stop_kind']})"
+            saved = "-"
         else:
-            verdict = "good stop" + (" before the jump" if r["stopped_before_jump"] else (" (no drift in this run)" if not r["drifted"] else ""))
-        out.append(f"| {r['run_id']} | {'on' if r['positivity'] else 'off'} | {r['seed']} | {r['n_rounds']} | "
+            if r["bad_stop"]:
+                verdict = f"bad stop ({r['bad_stop_kind']})"
+            else:
+                verdict = "good stop" + (" before the jump" if r["stopped_before_jump"] else (" (no drift in this run)" if not r["drifted"] else ""))
+            saved = "discarded (laptop sleep)" if r["timing_suspect"] else f"{r['saved_s']:.1f}"
+        failed = int(r["_log"].get("failed_rounds", 0))
+        margin = "" if r["plateau_margin"] is None else f"{r['plateau_margin']:.2f}"
+        out.append(f"| {r['run_id']} | {'on' if r['positivity'] else 'off'} | {r['seed']} | {r['n_rounds']} + {failed} | "
                    f"{'never' if r['stop_round'] is None else r['stop_round']} | {_f(r['rms_stop'])} | {_f(r['rms_final'])} | "
-                   f"{r['best_round']} | {_f(r['rms_best'])} | {_f(r['cl_stop'])} | {_f(r['cl_final'])} | {_f(r['cl_ref'])} | {verdict} |")
+                   f"{r['best_round']} | {_f(r['rms_best'])} | {_f(r['cl_stop'])} | {_f(r['cl_final'])} | {_f(r['cl_ref'])} | "
+                   f"{saved} | {margin} | {verdict} |")
     return head + "\n".join(out) + "\n"
 
 
@@ -414,6 +421,10 @@ def online_summary_row(runs_root=runs.RUNS, name=ONLINE_RUN, replay_rows=None):
     pred_row = next((r for r in (replay_rows or []) if r["run_id"] == base), None)
     predicted = "unknown" if pred_row is None else ("never (no stop within the planned rounds)" if pred_row["stop_round"] is None else f"round {pred_row['stop_round']}")
     where = (f"stopped by the rule at round {stop['round']}" if stop else f"the rule did not trigger ({len(log['round'])} rounds logged)")
+    attempts, planned = len(log["round"]) + int(log.get("failed_rounds", 0)), cfg.get("rounds")
+    if not stop and planned and attempts < int(planned):   # killed before the planned attempts were used: not a finished run
+        where += (f"; the run was CUT OFF after {attempts} of {planned} planned attempts ({len(log['round'])} good, "
+                  f"{int(log.get('failed_rounds', 0))} failed), so it is inconclusive, not a confirmation")
     row, _ = ex.pinn_row(d, runs.FVM["NACA0012"], "E6", case=None, extra="")
     pos = bool(cfg.get("positivity", True))
     row["method"] = "pinn_stoprule_online" if pos else "pinn_nopos_stoprule_online"
@@ -448,9 +459,7 @@ def main(argv=None) -> int:
                   f"final {r['rms_final']:.4f}  best {r['rms_best']:.4f}@{r['best_round']}")
         if a.summary:
             n = 0
-            for r in rows:
-                if r["group"] == "held-out-new":   # these get pinn_stoprule rows via ``new-runs``
-                    continue
+            for r in rows:   # the new-seed runs also get side-by-side pinn / pinn_stoprule rows via ``new-runs``
                 metrics.append_summary(replay_summary_row(r), a.summary_path)
                 n += 1
             print(f"{n} rows (E6, pinn_stoprule_replay) -> {a.summary_path}")
@@ -467,7 +476,9 @@ def main(argv=None) -> int:
         groups = {"DEVELOPMENT (E1, thresholds set on these)": [r for r in rows if r["group"] == "development"],
                   "HELD-OUT, finished runs (existing)": [r for r in rows if r["group"] == "held-out"],
                   "HELD-OUT, new seeds (E6)": [r for r in rows if r["group"] == "held-out-new"]}
-        print(aggregate_table_md(groups))
+        groups_agg = dict(groups)
+        groups_agg["HELD-OUT, all (existing + new)"] = [r for r in rows if r["group"] != "development"]
+        print(aggregate_table_md(groups_agg))
         print("\nSENSITIVITY (tuned on held-out data: not a claim)\n")
         print(sensitivity_md(rows))
         for name, g in groups.items():

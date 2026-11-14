@@ -231,6 +231,7 @@ def test_write_replay_csv_and_markdown_tables(tmp_path):
     assert [g["stop_round"] for g in got] == ["5", "never"] and set(got[0]) == set(sre.COLUMNS)
     md = sre.run_table_md(rows)
     assert "good stop before the jump" in md and "never stops (drifted)" in md
+    assert "| 8 + 0 |" in md and "| 30.0 |" in md   # rounds good + failed; training seconds from the stop round (round 5, 50 s) to the end (80 s)
     assert "| DEVELOPMENT" in sre.aggregate_table_md({"DEVELOPMENT": rows})
     s = sre.sensitivity(rows)
     assert s[0]["dcl"] == 0.002 and s[0]["held_n"] == 2 and s[0]["held_stopped"] == 1 and s[0]["dev_n"] == 0
@@ -252,3 +253,20 @@ def test_online_summary_row_compares_with_the_replay_prediction(tmp_path):
     assert row["method"] == "pinn_stoprule_online" and row["case"] == "NACA0012_a4_s3" and row["experiment"] == "E6"
     assert "stopped by the rule at round 5" in row["notes"] and "predicted round 5" in row["notes"]
     assert row["rms_cp"] == pytest.approx(0.0285, abs=1e-4)
+    assert "CUT OFF" not in row["notes"]
+
+
+def test_online_summary_row_says_when_the_run_was_cut_off_before_the_planned_attempts(tmp_path):
+    root = tmp_path / "runs"
+    root.mkdir()
+    ref = runs.FVM["NACA0012"]
+    d = make_run(root, "naca0012_50x25_a4_m04_s3_e6_online", SETTLE_OFF[:4], SETTLE_CL[:4], ref=ref, seed=3, stop_rule="plateau")
+    cfg = json.loads((d / "config.json").read_text())
+    cfg["rounds"] = 20
+    (d / "config.json").write_text(json.dumps(cfg))
+    log = json.loads((d / "log.json").read_text())
+    log["failed_rounds"] = 1
+    (d / "log.json").write_text(json.dumps(log))
+    row = sre.online_summary_row(root, "naca0012_50x25_a4_m04_s3_e6_online", [])
+    assert "the rule did not trigger (4 rounds logged)" in row["notes"]
+    assert "CUT OFF after 5 of 20 planned attempts (4 good, 1 failed)" in row["notes"] and "inconclusive" in row["notes"]
