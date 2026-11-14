@@ -45,7 +45,7 @@ is not installed), PyTorch 2.15.0+cpu, **8 threads**, idle CPU, float32.
 - Totals: 334.2 s (50x25, 19 good rounds, 1 failed), 416.2 s (50x25 no positivity, 18 good, 2 failed), 577.6 s (100x50
   plain, 20 rounds), 143.9 s and 121.1 s (100x50 grid-sequenced, 4 rounds each, **not** counting the 50x25 run they
   start from). No speed advantage of grid sequencing is claimed: its coarse stage here was a full 50x25 run.
-  200x100 was not run.
+  200x100 was not run in Milestone 1 (it was run afterwards, in Milestone 3, experiment E2).
 
 ## 4. Results
 

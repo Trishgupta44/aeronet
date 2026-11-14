@@ -56,10 +56,10 @@ results) and a project with solid measured numbers. Deliver everything the exist
 5. **The PINN already beats the FVM on the sparse mesh (headline result, measured).** FVM Cl (from the
    ordered FVM Cp files) for NACA 0012 at 4° and Mach 0.4 is 0.4265 at 50×25, 0.4803 at 100×50, 0.5046 at
    200×100, 0.5146 at 400×200 and **0.5193 at 800×400**. The upstream PINN on the **50×25** mesh gave
-   **Cl = 0.514** after one 72 s round. FVM on the same mesh is 18% low. After 3 rounds (no positivity)
+   **Cl = 0.514** after one round (the round took 72 s when the CPU was shared; a clean 50x25 round is about 53 s, measured in M1). FVM on the same mesh is 18% low. After 3 rounds (no positivity)
    the PINN's Cp **RMS vs FVM 800×400 was 0.0271** (max 0.160), against **0.108** for FVM 50×25: about 4×
    more accurate on the same sparse mesh. A first 100×50 round (with positivity) gave Cl 0.372 and RMS 0.096.
-   Its time (196 s) was measured while other jobs shared the CPU, so A12 must re-measure it on an idle machine. FVM coarse-mesh Cp error against
+   Its time (196 s) was measured while other jobs shared the CPU; M1 re-measured it on an idle machine: about 90 s per full 100x50 round. FVM coarse-mesh Cp error against
    800×400: RMS 0.108 at 50×25, 0.046 at 100×50, 0.019 at 200×100 and 0.006 at 400×200.
 6. **Finding 3 is confirmed, with low impact.** `NNfoil/mesh_generation/mesh_gen.py` uses `-0.5*beta` on the
    cross-derivative term, while Winslow's equation needs `-2*beta` (4× too small). The bundled
@@ -112,9 +112,11 @@ results) and a project with solid measured numbers. Deliver everything the exist
    case proves nothing. A12b runs the seed check in both modes (see Plan A). Do not claim either direction
    until it is done.
 8h. **E1 result (measured, 50x25, 3 seeds x 2 modes, 20 rounds; `results/e1_rounds.csv`): accuracy is reached
-   early and then lost in 5 of 6 runs, whatever the positivity setting.** Cp RMS vs FVM 800x400 at round 3-5
-   is 0.027-0.032 in all six runs (about 4x better than the FVM 50x25 on its own mesh, 0.108). Later, the error
-   jumps to 0.12-0.22 and Cl falls to 0.17-0.32 in five runs: positivity on, jumps at round 8 (s0), 16 (s1),
+   early and then lost in 5 of 6 runs, whatever the positivity setting.** Cp RMS vs FVM 800x400 at round 3
+   is 0.027-0.032 in all six runs (about 4x better than the FVM 50x25 on its own mesh, 0.108); rounds 4 and 5 are
+   NOT always that good (nopos seed 1 is 0.101 at round 4 and 0.147 at round 5; nopos seed 2 is 0.045 at round 5:
+   corrected 2026-11-14). Later, in four runs the error ends at 0.154-0.222 with Cl 0.168-0.317 (positivity on
+   seed 0 ends at 0.073 with Cl 0.412), and the jump comes: positivity on, jumps at round 8 (s0), 16 (s1),
    17 (s2); positivity off, at round 4 (s1) and 7-11 (s2); only nopos seed 0 stayed good (final RMS 0.0325).
    Final-round RMS (pos | nopos): s0 0.073 | 0.033, s1 0.154 | 0.183, s2 0.162 | 0.222. The earlier
    conclusion "positivity hurts" (8f) came from the lucky nopos seed 0 and is withdrawn: **neither mode wins**.
