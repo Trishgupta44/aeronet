@@ -9,11 +9,11 @@ from pathlib import Path
 from time import perf_counter
 
 import numpy as np
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from . import __version__, compressibility, neural, optimize, pinn_data, tradeoff
+from . import __version__, compressibility, config, limits, neural, optimize, pinn_data, tradeoff
 from .compare import compare_cp, compare_cp_nearest, parse_reference, thin_airfoil_cl
 from .field import field_grid
 from .geometry import naca4
@@ -53,7 +53,7 @@ SHAPES = library()  # presets are built once, at import time
 app = FastAPI(title="AeroNet API", version=__version__, description="Airfoil flow solver (panel-method stand-in for the NNfoil PINN).")
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=config.cors_origins(),
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -169,7 +169,19 @@ def polar(req: PolarRequest) -> PolarResponse:
     return PolarResponse(alpha=req.alphas, cl=[s.cl for s in sols], cl_thin=cl_thin)
 
 
-@app.post("/api/viscous", response_model=ViscousResponse)
+@app.get("/api/capabilities")
+def capabilities() -> dict:
+    """What this deployment offers, so the page can hide what is missing (see config.py for the switches)."""
+    withheld = config.withhold_fvm_data()
+    return {
+        "fvm_sample": (not withheld) and SAMPLE_FILE.exists(),  # the bundled NNfoil FVM sample and the overlay that uses it
+        "fvm_curves": not withheld,  # FVM Cp curves in the PINN showdown (the error numbers are always shown)
+        "neuralfoil": neural.available(),
+        "public_build": withheld,
+    }
+
+
+@app.post("/api/viscous", response_model=ViscousResponse, dependencies=[Depends(limits.heavy_guard)])
 def solve_viscous(req: ViscousRequest) -> dict:
     """NeuralFoil viscous Cl/Cd for a NACA airfoil, next to the inviscid panel result (optional dependency)."""
     if not neural.available():
@@ -177,7 +189,7 @@ def solve_viscous(req: ViscousRequest) -> dict:
     return neural.viscous(req.code, req.alpha, req.re, req.model_size)
 
 
-@app.post("/api/optimize")
+@app.post("/api/optimize", dependencies=[Depends(limits.heavy_guard)])
 def optimize_shape(req: OptimizeRequest) -> dict:
     """Shape a NACA 4-digit-family airfoil for the least suction at the target Cl (raises the critical Mach number). Inviscid."""
     return optimize.optimise(req.target_cl, req.min_thickness, req.code)
@@ -226,6 +238,8 @@ def parse_reference_file(req: ParseRequest) -> ReferenceData:
 
 @app.get("/api/reference/sample", response_model=ReferenceData)
 def sample_reference() -> ReferenceData:
+    if config.withhold_fvm_data() or not SAMPLE_FILE.exists():
+        raise HTTPException(status_code=404, detail="The bundled FVM sample is not available in this deployment. You can still load your own *_Cp.dat file.")
     pts = parse_reference(SAMPLE_FILE.read_text(encoding="utf8"))
     return ReferenceData(
         name="NACA0012 200×100 FVM sample",

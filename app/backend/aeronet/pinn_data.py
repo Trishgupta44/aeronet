@@ -22,7 +22,7 @@ from pathlib import Path
 
 import numpy as np
 
-from . import compressibility
+from . import compressibility, config
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 CASE = {"shape": "NACA0012", "alpha_deg": 4.0, "mach": 0.4, "case_id": "NACA0012_a4"}
@@ -235,6 +235,7 @@ def _pinn_entry(rows, mesh: str, method: str, run_id: str) -> dict | None:
 def showdown() -> dict:
     """Everything the same-mesh showdown card needs (see roadmap feature 1)."""
     rows = _read_summary()
+    withheld = config.withhold_fvm_data()  # public deployments: error numbers yes, NNfoil's FVM Cp curves no
     meshes = []
     for mesh in MESHES:
         fvm_row = _summary_row(rows, "B0", "fvm", mesh)
@@ -245,7 +246,7 @@ def showdown() -> dict:
                 "rms": _num(fvm_row["rms_cp"]),
                 "max": _num(fvm_row["max_cp"]),
                 "cl": _num(fvm_row["cl"]),
-                "curve": load_fvm_curve(mesh),
+                "curve": None if withheld else load_fvm_curve(mesh),
             }
         pinn = [e for (m, meth), run_id in E2_RUNS.items() if m == mesh and (e := _pinn_entry(rows, m, meth, run_id))]
         meshes.append({"mesh": mesh, "fvm": fvm, "pinn": pinn})
@@ -255,8 +256,9 @@ def showdown() -> dict:
         "reference": {
             "label": f"FVM {REFERENCE_MESH}",
             "cl": _num(ref_row["cl"]) if ref_row else None,
-            "curve": load_fvm_curve(REFERENCE_MESH),
+            "curve": None if withheld else load_fvm_curve(REFERENCE_MESH),
         },
+        "fvm_curves_withheld": withheld,
         "error_definition": "RMS and max |Cp - Cp_ref| at the reference points with 0.02 <= x/c <= 0.98, nearest wall point (research/metrics.py)",
         "meshes": meshes,
     }

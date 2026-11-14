@@ -7,12 +7,16 @@ const BUNDLE_URL = '/cache/bundle.json';
 const POLL_MS = 10000;
 const HEALTH_TIMEOUT_MS = 3000;
 
-const store = { offline: false, bundle: null, loading: null, retryFailed: false };
+// Static demo build (VITE_STATIC_DEMO=1): there is no backend at all (the page is hosted as plain files), so the saved answers
+// are used from the first request on and nothing calls /api. Everything else is the same as the offline fallback.
+export const STATIC_DEMO = (typeof import.meta !== 'undefined' && import.meta.env?.VITE_STATIC_DEMO === '1') || false;
+
+const store = { offline: STATIC_DEMO, bundle: null, loading: null, retryFailed: false };
 let snapshot = { ...store };
 const listeners = new Set();
 
 function publish() {
-  snapshot = { offline: store.offline, savedAt: store.bundle?.generated_utc ?? null, hasBundle: !!store.bundle, retryFailed: store.retryFailed };
+  snapshot = { offline: store.offline, savedAt: store.bundle?.generated_utc ?? null, hasBundle: !!store.bundle, retryFailed: store.retryFailed, staticDemo: STATIC_DEMO };
   listeners.forEach((l) => l());
 }
 publish();
@@ -73,6 +77,7 @@ async function healthy() {
 /** Poll the health endpoint while online; the first failure switches to saved results and polling stops. */
 export function startHealthMonitor() {
   ensureBundle();
+  if (STATIC_DEMO) return () => {}; // no backend to watch
   const id = setInterval(async () => {
     if (store.offline) return;
     if (!(await healthy())) goOffline();

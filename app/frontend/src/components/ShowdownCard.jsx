@@ -38,7 +38,8 @@ function fillBand(g, band, X, Y, color) {
 function drawShowdown(g, w, h, reference, fvm, pinn) {
   const m = { l: 46, r: 14, t: 12, b: 34 };
   const band = pinn?.seeds?.band;
-  const all = [...reference.cp, ...(fvm ? fvm.curve.cp : []), ...(pinn?.curve ? pinn.curve.cp : []), ...(band ? [...band.cp_min, ...band.cp_max] : [])];
+  // `reference` and `fvm.curve` are null on public deployments (NNfoil's FVM curves are not served there)
+  const all = [...(reference ? reference.cp : []), ...(fvm?.curve ? fvm.curve.cp : []), ...(pinn?.curve ? pinn.curve.cp : []), ...(band ? [...band.cp_min, ...band.cp_max] : []), -1, 1];
   const lo = Math.min(-1, Math.floor((Math.min(...all) - 0.1) * 2) / 2);
   const hi = Math.max(1.5, Math.ceil(Math.max(...all) * 2) / 2);
   const X = (x) => m.l + x * (w - m.l - m.r);
@@ -74,8 +75,8 @@ function drawShowdown(g, w, h, reference, fvm, pinn) {
   g.restore();
 
   if (band) fillBand(g, band, X, Y, cssVar('--up'));
-  strokeCurve(g, reference, X, Y, cssVar('--ref'), 1.4);
-  if (fvm) strokeCurve(g, fvm.curve, X, Y, cssVar('--lo'), 1.8, [6, 4]);
+  if (reference) strokeCurve(g, reference, X, Y, cssVar('--ref'), 1.4);
+  if (fvm?.curve) strokeCurve(g, fvm.curve, X, Y, cssVar('--lo'), 1.8, [6, 4]);
   if (pinn?.curve) strokeCurve(g, pinn.curve, X, Y, cssVar('--up'), 2);
 }
 
@@ -191,8 +192,8 @@ function ShowdownBody({ data }) {
       )}
       <div><canvas ref={ref} aria-label="Wall Cp: reference, finite-volume and PINN" role="img" /></div>
       <div className="legend">
-        <span><i style={{ background: 'var(--ref)' }} />{data.reference.label} (reference)</span>
-        {entry.fvm && <span><i style={{ background: 'var(--lo)' }} />FVM {mesh.replace('x', '×')}</span>}
+        {data.reference.curve && <span><i style={{ background: 'var(--ref)' }} />{data.reference.label} (reference)</span>}
+        {entry.fvm?.curve && <span><i style={{ background: 'var(--lo)' }} />FVM {mesh.replace('x', '×')}</span>}
         {ready && <span><i style={{ background: 'var(--up)' }} />PINN {mesh.replace('x', '×')}, final round</span>}
         {ready && pinn.seeds?.band && <span><i style={{ background: 'var(--up)', opacity: 0.25, borderRadius: 0 }} />min-max over {pinn.seeds.band.n_curves} seeds</span>}
       </div>
@@ -224,6 +225,12 @@ function ShowdownBody({ data }) {
         </div>
       )}
       {ready && <Evidence pinn={pinn} mesh={mesh} mach={data.case.mach} />}
+      {data.fvm_curves_withheld && (
+        <p className="hint">
+          The finite-volume pressure curves are not shown in this deployment: the NNfoil data they come from has no licence for redistribution. The errors above
+          were computed against them and are real; the PINN curves are this project's own results.
+        </p>
+      )}
       <p className="src">
         Source: results/summary.csv (experiments B0 and E2) and the final-round Cp of each run; the final round is used, never the best round (choosing it would use the reference answer).
         Error = {data.error_definition}.

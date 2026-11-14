@@ -45,7 +45,7 @@ function compact(x, d = 6) {
 }
 
 const health = await call('/api/health');
-for (const p of ['/api/solvers', '/api/airfoils', '/api/shapes', '/api/reference/sample', '/api/showdown', '/api/tradeoff']) await save(p);
+for (const p of ['/api/solvers', '/api/airfoils', '/api/shapes', '/api/capabilities', '/api/reference/sample', '/api/showdown', '/api/tradeoff']) await save(p);
 
 const airfoils = entries[cacheKey('/api/airfoils')];
 const shapes = entries[cacheKey('/api/shapes')];

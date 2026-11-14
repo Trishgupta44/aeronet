@@ -46,7 +46,10 @@ cd ../backend
 **Development (hot reload):** run the backend as above (add `--reload`), and in another terminal `cd frontend && npm run dev`,
 then open http://localhost:5173. Vite proxies `/api` to port 8000.
 
-Page options (same as the prototype): `?sample` opens with the bundled FVM reference loaded; `?light` forces the light theme.
+Page options (same as the prototype): `?sample` opens with the bundled FVM reference loaded; `?theme=light` or `?theme=dark` forces a colour
+theme for one visit (`?light` still works).
+
+**Deploying** (static demo, one container, or the laptop, and the licence line for a public site): see [`docs/DEPLOY.md`](../docs/DEPLOY.md).
 
 ## Tests
 

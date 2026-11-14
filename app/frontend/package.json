@@ -6,6 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "check:public": "node scripts/check-public-bundle.mjs",
+    "build:public": "npm run check:public && vite build",
+    "build:static": "npm run check:public && vite build --mode static",
     "preview": "vite preview",
     "test": "vitest run"
   },

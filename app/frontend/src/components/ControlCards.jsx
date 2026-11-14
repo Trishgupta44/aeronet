@@ -51,18 +51,19 @@ export function FlowCard({ alpha, mach, onAlpha, onMach, idp = '', title = '3 ·
   );
 }
 
-export function ReferenceCard({ status, onLoadSample, onClear, onFile }) {
+export function ReferenceCard({ status, onLoadSample, onClear, onFile, sampleAvailable = true }) {
   return (
     <section className="card">
       <h2>4 · Compare with reference</h2>
       <div className="upload">
-        <button className="btn" id="loadSample" onClick={onLoadSample}>Load bundled FVM sample</button>
+        {sampleAvailable && <button className="btn" id="loadSample" onClick={onLoadSample}>Load bundled FVM sample</button>}
         <button className="btn" id="clearRef" onClick={onClear}>Clear</button>
       </div>
       <div style={{ marginTop: 8 }}>
         <label htmlFor="file" className="hint">Or load your own NNfoil <code>*_Cp.dat</code> file:</label>
         <input type="file" id="file" accept=".dat,.txt" onChange={(e) => { onFile(e.target.files[0]); e.target.value = ''; }} />
       </div>
+      {!sampleAvailable && <div className="hint">The bundled FVM sample is not part of this deployment (the NNfoil data has no licence for redistribution); your own file works as usual.</div>}
       <div className={`status ${status.kind}`} id="refStatus" role="status">{status.text}</div>
     </section>
   );
