@@ -70,13 +70,18 @@ function drawPolar(g, w, h, d) {
   });
 }
 
+// Its own component so the canvas hook mounts together with the canvas (the canvas only exists once there is data).
+function PolarCanvas({ data }) {
+  const ref = useRef(null);
+  useCanvasDraw(ref, (w) => Math.max(240, Math.min(320, w * 0.4)), (g, w, h) => drawPolar(g, w, h, data), [data]);
+  return <div><canvas ref={ref} aria-label="Lift coefficient versus angle of attack, inviscid and viscous" role="img" /></div>;
+}
+
 /** Viscous reality check for NACA airfoils: NeuralFoil estimate next to the inviscid panel result. Not shown for other shapes. */
 export default function ViscousCard({ code, alpha }) {
   const [re, setRe] = useState(1e6);
   const [data, setData] = useState(null);
   const [error, setError] = useState('');
-  const ref = useRef(null);
-
   useEffect(() => {
     const ctl = new AbortController();
     const t = setTimeout(() => {
@@ -87,7 +92,6 @@ export default function ViscousCard({ code, alpha }) {
     return () => { clearTimeout(t); ctl.abort(); };
   }, [code, alpha, re]);
 
-  useCanvasDraw(ref, (w) => Math.max(240, Math.min(320, w * 0.4)), (g, w, h) => { if (data) drawPolar(g, w, h, data); }, [data]);
 
   return (
     <section className="card">
@@ -126,7 +130,7 @@ export default function ViscousCard({ code, alpha }) {
               <span className="tag tag--measured">measured now</span>
             </div>
           </div>
-          <div><canvas ref={ref} aria-label="Lift coefficient versus angle of attack, inviscid and viscous" role="img" /></div>
+          <PolarCanvas data={data} />
           <div className="legend">
             <span><i style={{ background: 'var(--ref)' }} />inviscid panel method</span>
             <span><i style={{ background: 'var(--up)' }} />NeuralFoil, Re {RE_CHOICES.find((c) => c[0] === data.re)?.[1] ?? data.re}</span>

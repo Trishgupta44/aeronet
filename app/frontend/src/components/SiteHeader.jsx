@@ -1,57 +1,38 @@
 import { useEffect, useState } from 'react';
-import { activeSection } from '../utils/scrollSpy.js';
 import Glyph from './Glyph.jsx';
+import ThemeToggle from './ThemeToggle.jsx';
 
+// The pages (tabs) of the site. Each link is a plain #hash link; App follows the hash, so back, forward and shared links work.
 export const NAV = [
+  { id: 'home', label: 'Home' },
   { id: 'explore', label: 'Explore' },
   { id: 'draw', label: 'Draw' },
   { id: 'pinn', label: 'PINN Lab' },
   { id: 'results', label: 'Results' },
-  { id: 'about', label: 'About' },
 ];
 
-// Sections that are not in the nav still end the previous nav section: below them nothing is highlighted.
-const SPY_IDS = [...NAV.map((n) => n.id), 'overview', 'credit'];
-
-function useScrollState() {
-  const [state, setState] = useState({ stuck: false, active: null });
+/** True once the page has scrolled past the header (shows the compact bar). */
+function useStuck() {
+  const [stuck, setStuck] = useState(false);
   useEffect(() => {
-    let raf = 0;
-    const read = () => {
-      raf = 0;
-      const y = window.scrollY;
-      const offsets = SPY_IDS.map((id) => {
-        const el = document.getElementById(id);
-        return el ? { id, top: el.getBoundingClientRect().top + y } : null;
-      }).filter(Boolean);
-      const next = { stuck: y > 64, active: activeSection(offsets, y) };
-      setState((s) => (s.stuck === next.stuck && s.active === next.active ? s : next));
-    };
-    const onScroll = () => {
-      if (!raf) raf = requestAnimationFrame(read);
-    };
-    read();
-    window.addEventListener('scroll', onScroll, { passive: true });
-    window.addEventListener('resize', onScroll);
-    return () => {
-      window.removeEventListener('scroll', onScroll);
-      window.removeEventListener('resize', onScroll);
-      if (raf) cancelAnimationFrame(raf);
-    };
+    const on = () => setStuck(window.scrollY > 64);
+    on();
+    window.addEventListener('scroll', on, { passive: true });
+    return () => window.removeEventListener('scroll', on);
   }, []);
-  return state;
+  return stuck;
 }
 
-function Links({ active, onPick }) {
+function Links({ page, onPick }) {
   return NAV.map((n) => (
-    <a key={n.id} href={`#${n.id}`} aria-current={active === n.id ? 'location' : undefined} onClick={onPick}>
+    <a key={n.id} href={`#${n.id}`} aria-current={page === n.id ? 'page' : undefined} onClick={onPick}>
       {n.label}
     </a>
   ));
 }
 
-export default function SiteHeader() {
-  const { stuck, active } = useScrollState();
+export default function SiteHeader({ page }) {
+  const stuck = useStuck();
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
@@ -69,7 +50,7 @@ export default function SiteHeader() {
 
   return (
     <>
-      <header className="site-header">
+      <header className="site-header" id="top">
         <div className="utility">
           <div className="container utility-in">
             <span>Prototype · inviscid · subsonic · screening tool</span>
@@ -80,26 +61,29 @@ export default function SiteHeader() {
         </div>
         <div className="mainnav">
           <div className="container mainnav-in">
-            <a className="brand" href="#top" aria-label="AeroNet, back to top">
+            <a className="brand" href="#home" aria-label="AeroNet, home">
               <Glyph /> <span>AeroNet</span>
             </a>
             <nav className="links" aria-label="Main">
-              <Links active={active} />
+              <Links page={page} />
             </nav>
-            {burger('')}
+            <div className="nav-tools">
+              <ThemeToggle />
+              {burger('')}
+            </div>
           </div>
         </div>
       </header>
 
       <div className={`stickybar${stuck ? ' on' : ''}`} aria-hidden={!stuck} inert={stuck ? undefined : ''}>
         <div className="container stickybar-in">
-          <a className="brand" href="#top">
+          <a className="brand" href="#home">
             <Glyph size={22} /> <span>AeroNet</span>
           </a>
-          <nav className="links" aria-label="Sections">
-            <Links active={active} />
+          <nav className="links" aria-label="Pages">
+            <Links page={page} />
           </nav>
-          <a className="totop" href="#top">Back to top <span aria-hidden="true">↑</span></a>
+          <ThemeToggle onChrome />
           {burger('burger--bar')}
         </div>
       </div>
@@ -110,8 +94,9 @@ export default function SiteHeader() {
           <button type="button" className="sheet-close" aria-label="Close menu" onClick={() => setOpen(false)}>×</button>
         </div>
         <nav className="container sheet-links" aria-label="Menu">
-          <Links active={active} onPick={() => setOpen(false)} />
+          <Links page={page} onPick={() => setOpen(false)} />
         </nav>
+        <div className="container sheet-theme"><ThemeToggle onChrome /></div>
       </div>
     </>
   );

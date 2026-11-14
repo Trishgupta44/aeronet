@@ -1,16 +1,9 @@
 import { useEffect, useState } from 'react';
+import { useTheme } from '../theme/useTheme.js';
 
-/** Redraw counter that changes when the OS light/dark preference changes (canvas colours come from CSS variables). */
+/** Changes when the theme in force changes (toggle, or the OS preference while on "system"): canvases read CSS variables, so they redraw. */
 function useThemeTick() {
-  const [tick, setTick] = useState(0);
-  useEffect(() => {
-    const mq = window.matchMedia?.('(prefers-color-scheme: dark)');
-    if (!mq) return undefined;
-    const on = () => setTick((t) => t + 1);
-    mq.addEventListener('change', on);
-    return () => mq.removeEventListener('change', on);
-  }, []);
-  return tick;
+  return useTheme().resolved;
 }
 
 /**
