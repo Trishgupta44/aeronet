@@ -74,6 +74,8 @@ Every number carries a **measured**, **quoted** or **fitted** tag with its sourc
 | `?pinn=<case id>&round=N` | open the PINN Lab on that case at training round N, for example `?pinn=naca0012_100x50_a4_m04_gs#pinn` (ids from `GET /api/pinn/cases`) |
 | `?tab=explore`, `?tab=draw`, `code`, `alpha`, `mach`, `shape`, `lifting`, `ground` | shareable state of the two tool pages (written to the address as you work; freehand outlines are not stored) |
 
+**Deploying** (static demo, one container, or the laptop, and the licence line for a public site): see [`docs/DEPLOY.md`](../docs/DEPLOY.md).
+
 ## Tests
 
 ```bash

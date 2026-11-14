@@ -7,11 +7,28 @@ const when = (iso) => {
   return Number.isNaN(d.getTime()) ? iso : d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
 };
 
-/** Shown only when the backend is unreachable: says that the page now shows saved results, from when, and what still works. */
+/**
+ * Shown only when the page runs on saved results: because the backend is unreachable (red, with Try again), or because this is a
+ * static demo build (calm notice, nothing to retry). Says from when the results are and what still works.
+ */
 export default function BackendBanner() {
   const s = useSyncExternalStore(subscribe, getSnapshot);
   useEffect(() => startHealthMonitor(), []);
   if (!s.offline) return null;
+
+  if (s.staticDemo) {
+    return (
+      <div className="notice" role="status" style={{ margin: 0, borderRadius: 0 }}>
+        <b>Static demo.</b>{' '}
+        {s.hasBundle ? (
+          <>Every result on this page is a saved result from <b>{when(s.savedAt)}</b>: the presets at their starting angle and Mach number, the PINN results and the charts. The sliders, drawing and new cases need the live app.</>
+        ) : (
+          <>The saved results could not be loaded, so nothing can be shown.</>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="notice error-banner" role="alert" style={{ margin: 0, borderRadius: 0 }}>
       <b>The solver backend is not reachable.</b>{' '}

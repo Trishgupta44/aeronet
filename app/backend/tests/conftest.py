@@ -6,7 +6,7 @@ import json
 
 import pytest
 
-from aeronet import pinn_cases
+from aeronet import limits, pinn_cases
 
 SUMMARY_HEADER = "experiment,case,method,mesh,mach,alpha_deg,rms_cp,max_cp,cl,cl_ref,cd,train_s,infer_ms,source,notes\n"
 NUMERIC = ("mach", "alpha_deg", "rms_cp", "max_cp", "cl", "cl_ref", "cd", "train_s", "infer_ms")
@@ -65,3 +65,11 @@ def write_results(d, rows) -> None:
 
 def write_seed_runs(d, groups) -> None:
     (d / "seed_runs.json").write_text(json.dumps({"groups": groups}), encoding="utf8")
+
+
+@pytest.fixture(autouse=True)
+def _fresh_limits():
+    """The per-address and concurrency counters of the expensive endpoints start empty in every test."""
+    limits.reset()
+    yield
+    limits.reset()

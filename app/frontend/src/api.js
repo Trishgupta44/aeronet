@@ -45,6 +45,7 @@ export const getAirfoils = () => request('/api/airfoils');
 export const getSampleReference = () => request('/api/reference/sample');
 export const parseReference = (text, name) => request('/api/reference/parse', { method: 'POST', body: JSON.stringify({ text, name }) });
 export const getShowdown = () => request('/api/showdown');
+export const getCapabilities = () => request('/api/capabilities');
 export const getTradeoff = () => request('/api/tradeoff');
 export const optimizeShape = (body) => request('/api/optimize', { method: 'POST', body: JSON.stringify(body) });
 export const getViscous = (body, signal) => request('/api/viscous', { method: 'POST', body: JSON.stringify(body), signal });

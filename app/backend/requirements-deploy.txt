@@ -1,0 +1,5 @@
+# Runtime dependencies of the deployed server (requirements.txt adds the test tools). NeuralFoil is optional: requirements-viscous.txt.
+numpy>=2.1
+fastapi>=0.115
+uvicorn>=0.30
+pydantic>=2.8

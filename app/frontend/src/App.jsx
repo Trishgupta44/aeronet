@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
-import { getAirfoils, getSampleReference, getSolvers, parseReference } from './api.js';
+import { getAirfoils, getCapabilities, getSampleReference, getSolvers, parseReference } from './api.js';
 import { AirfoilCard, FlowCard, ReferenceCard, SolverCard } from './components/ControlCards.jsx';
 import CaseView from './components/CaseView.jsx';
 import DrawSection from './components/DrawSection.jsx';
@@ -73,9 +73,11 @@ export default function App() {
   const { result, error } = useSolve({ kind: 'naca', solver, code, alpha, mach, reference });
   const { rows: resultRows, error: resultsError } = useResults();
 
+  const [sampleAvailable, setSampleAvailable] = useState(true); // false on public deployments (no NNfoil FVM data)
   useEffect(() => {
     getSolvers().then(setSolvers).catch(() => {});
     getAirfoils().then(setPresets).catch(() => {});
+    getCapabilities().then((c) => setSampleAvailable(c.fvm_sample !== false)).catch(() => {});
   }, []);
 
   const onPreset = (c) => {
@@ -281,7 +283,7 @@ export default function App() {
               <SolverCard solvers={solvers} value={solver} onChange={setSolver} />
               <AirfoilCard presets={presets} code={code} custom={custom} message={customMsg} onPreset={onPreset} onCustom={onCustom} />
               <FlowCard alpha={alpha} mach={mach} onAlpha={setAlpha} onMach={setMach} />
-              <ReferenceCard status={refStatus} onLoadSample={loadSample} onClear={onClear} onFile={onFile} />
+              <ReferenceCard status={refStatus} onLoadSample={loadSample} onClear={onClear} onFile={onFile} sampleAvailable={sampleAvailable} />
             </aside>
             <div className="stack">
               <CaseView caseName={`NACA ${code}`} polarSource={{ code, mach }} result={result} reference={reference} layers={layers} onLayersChange={setLayers} paused={paused} onPausedChange={setPaused} />
