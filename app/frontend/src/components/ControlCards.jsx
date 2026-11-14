@@ -1,18 +1,24 @@
 // The four control cards on the left: solver, airfoil, flow conditions, reference.
 
 export function SolverCard({ solvers, value, onChange }) {
-  const locked = solvers.find((s) => !s.available && s.note);
+  const pinn = solvers.find((s) => s.id === 'pinn');
   return (
     <section className="card">
       <h2>1 · Solver</h2>
       <div className="seg" role="group" aria-label="Solver source">
         {solvers.map((s) => (
-          <button key={s.id} aria-pressed={s.id === value} disabled={!s.available} title={s.available ? undefined : s.note} onClick={() => onChange(s.id)}>
+          // the PINN button is never selectable here: a trained network cannot answer arbitrary inputs (see the note below)
+          <button key={s.id} aria-pressed={s.id === value} disabled={!s.available || s.id === 'pinn'} title={s.id === 'pinn' ? 'Trained cases only: see the PINN Lab' : s.available ? undefined : s.note} onClick={() => onChange(s.id)}>
             {s.label}
           </button>
         ))}
       </div>
-      {locked && <div className="hint">{locked.note}</div>}
+      {pinn && (
+        <div className="hint">
+          The NNfoil PINN is not offered here: one network is trained per shape, Mach number and angle, so it answers only that condition and cannot solve the
+          inputs below. Its trained cases are in the <a href="#pinn">PINN Lab</a>; for any other condition, use the panel method.
+        </div>
+      )}
     </section>
   );
 }

@@ -325,3 +325,55 @@ ul.plain li { margin: 4px 0; }
   #draw .layout > div.stack { order: 2; }
   #draw .shape-grid { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: 96px; overflow-x: auto; padding-bottom: 6px; }
 }
+
+/* PINN Lab: case picker, tiles, replay, training charts, numbers dashboard */
+.lab > * + * { margin-top: 24px; }
+.lab-case > * + * { margin-top: 24px; }
+.lab-case.dim { opacity: .55; transition: opacity .15s; }
+.lab-title { margin: 0; font-size: 15px; }
+.lab .notice { margin-bottom: 0; }
+.lab .notice a { font-weight: 600; }
+.case-heading { margin: 18px 0 8px; font: 500 12px/1.4 var(--font-mono); text-transform: uppercase; letter-spacing: .12em; color: var(--heading); }
+.case-group:first-of-type .case-heading { margin-top: 8px; }
+.case-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 8px; }
+.case { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; text-align: left; padding: 10px 12px; background: var(--card); color: var(--ink);
+  border: 1px solid var(--line); border-radius: var(--radius); cursor: pointer; font: 500 13.5px/1.3 var(--font-body); transition: border-color .12s, background-color .12s; }
+.case:hover { border-color: var(--heading); }
+.case:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.case[aria-pressed="true"] { border-color: var(--heading); box-shadow: inset 0 0 0 1px var(--heading); background: color-mix(in srgb, var(--heading) 7%, var(--card)); }
+.case-sub { font-size: 12px; color: var(--muted); }
+.case-tags { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 2px; }
+.tag--quoted { color: #8a5a00; border-color: currentColor; }
+.tag--fitted { color: #7a2f8f; border-color: currentColor; }
+.tag--computed { color: var(--heading); border-color: currentColor; }
+.tag--collapsed { color: #b3261e; border-color: currentColor; font-weight: 600; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .tag--quoted { color: #f2c45a; }
+  :root:not([data-theme="light"]) .tag--fitted { color: #d9a3ec; }
+  :root:not([data-theme="light"]) .tag--collapsed { color: #ff9b8a; }
+}
+.metrics--lab { grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); }
+.metrics--lab .metric .v { font-size: 22px; }
+.metrics--lab .metric .tag { margin-top: 8px; }
+.lab-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; align-items: start; }
+@media (max-width: 960px) { .lab-grid { grid-template-columns: minmax(0, 1fr); } }
+.card h2.replay-title { margin-top: 22px; padding-top: 16px; border-top: 1px solid var(--line); }
+.replay-bar { display: flex; align-items: center; gap: 14px; }
+.replay-bar input[type=range] { flex: 1; min-width: 0; }
+.replay-btn { min-width: 92px; min-height: 36px; }
+.replay-read { margin: 10px 0 0; font-size: 14px; }
+.replay-read .hint { font-size: 12.5px; }
+.charts3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; }
+@media (max-width: 960px) { .charts3 { grid-template-columns: minmax(0, 1fr); } }
+.linechart { margin: 0; min-width: 0; }
+.linechart .k { font: 500 11px/1.3 var(--font-mono); text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin-bottom: 6px; }
+.filters { display: flex; flex-wrap: wrap; gap: 10px 28px; margin: 10px 0 4px; }
+.exp-note { font-size: 14px; margin: 10px 0 14px; min-height: 1.5em; }
+.results-table .num { text-align: right; white-space: nowrap; }
+.results-table th, .results-table td { padding: 8px 8px; font-size: 13px; }
+.results-table .sub { color: var(--muted); }
+.row-notes summary { cursor: pointer; color: var(--heading); font: 500 12px/1.4 var(--font-mono); white-space: nowrap; }
+.row-notes p { margin: 6px 0 0; min-width: 260px; max-width: 420px; font-size: 12.5px; color: var(--muted); white-space: normal; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.table-scroll { max-width: 100%; position: relative; } /* relative: keeps the visually hidden header inside the scroller */
+.src { overflow-wrap: anywhere; }

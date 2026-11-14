@@ -4,19 +4,22 @@ import { AirfoilCard, FlowCard, ReferenceCard, SolverCard } from './components/C
 import CaseView from './components/CaseView.jsx';
 import DrawSection from './components/DrawSection.jsx';
 import { DEFAULT_LAYERS, FlowStage, HERO_LAYERS, prefersReducedMotion } from './components/FlowCanvas.jsx';
-import { ComparisonCard, PipelineCard, TrainingCard } from './components/InfoCards.jsx';
+import { ComparisonCard, PipelineCard } from './components/InfoCards.jsx';
 import CardGrid from './components/CardGrid.jsx';
 import Hero from './components/Hero.jsx';
 import Section from './components/Section.jsx';
 import SiteFooter from './components/SiteFooter.jsx';
 import BackendBanner from './components/BackendBanner.jsx';
 import OptimizeCard from './components/OptimizeCard.jsx';
+import PinnLab from './components/PinnLab.jsx';
+import ResultsTable from './components/ResultsTable.jsx';
 import ShowdownCard from './components/ShowdownCard.jsx';
 import TradeoffCard from './components/TradeoffCard.jsx';
 import ViscousCard from './components/ViscousCard.jsx';
 import SiteHeader from './components/SiteHeader.jsx';
 import { DrawThumb, ExploreThumb, LabThumb, ResultsThumb } from './components/Thumbs.jsx';
 import { HEADLINE } from './data/headline.js';
+import { useResults } from './hooks/useResults.js';
 import { useSolve } from './hooks/useSolve.js';
 import { checkNacaCode } from './utils/naca.js';
 import { readState, writeState } from './utils/urlState.js';
@@ -24,7 +27,7 @@ import { readState, writeState } from './utils/urlState.js';
 // Shown until (or if) the backend answers, so the layout never jumps.
 const FALLBACK_SOLVERS = [
   { id: 'panel', label: 'Panel method', available: true },
-  { id: 'pinn', label: 'NNfoil PINN', available: false, note: 'PINN option unlocks when a trained checkpoint is added (plan Day 5).' },
+  { id: 'pinn', label: 'NNfoil PINN', available: false, note: 'Trained cases only: open the PINN Lab.' },
 ];
 const FALLBACK_PRESETS = [
   { code: '0012', label: 'NACA 0012' },
@@ -67,6 +70,7 @@ export default function App() {
   const [drawRequest, setDrawRequest] = useState(null);
 
   const { result, error } = useSolve({ kind: 'naca', solver, code, alpha, mach, reference });
+  const { rows: resultRows, error: resultsError } = useResults();
 
   useEffect(() => {
     getSolvers().then(setSolvers).catch(() => {});
@@ -175,7 +179,7 @@ export default function App() {
   const cards = [
     { title: 'Explore', href: '#explore', thumb: <ExploreThumb />, text: 'Pick an airfoil, set the angle and Mach number, and watch the pressure field and lift update.' },
     { title: 'Draw', href: '#draw', thumb: <DrawThumb />, text: 'Sketch any closed 2D shape with a mouse, pen or finger, or pick a car, a bird wing or a UIUC airfoil file, and get its flow.' },
-    { title: 'PINN Lab', href: '#pinn', thumb: <LabThumb />, text: 'Trained neural solutions next to the finite-volume reference. They appear here once the runs are exported.' },
+    { title: 'PINN Lab', href: '#pinn', thumb: <LabThumb />, text: 'Trained neural networks next to the finite-volume reference and the panel method: pick a case, replay its training and read the numbers.' },
     { title: 'Results', href: '#results', thumb: <ResultsThumb />, text: 'What is measured, what is quoted from papers and what is still to be done, side by side.' },
   ];
 
@@ -234,9 +238,9 @@ export default function App() {
             <summary>What is real here</summary>
             <ul>
               <li><b>Real now:</b> the airfoil geometry, the panel solver (Hess–Smith, Python backend), the pressure field and curve, Cl from surface pressure, the thin-airfoil check (NACA codes only), the Mach correction and the solve time, which is measured on every request.</li>
-              <li><b>Stand-in:</b> the solver is a classical panel method (real physics, no neural network). The trained PINN replaces it when its results are exported; the layout and controls stay the same.</li>
+              <li><b>Stand-in:</b> the explorer's solver is a classical panel method (real physics, no neural network). The trained PINNs are in the PINN Lab: a network answers only the one condition it was trained for, so it cannot sit behind these sliders.</li>
               <li><b>Idealized:</b> inviscid, subsonic (Prandtl–Glauert) and 2D. There is no separation or wake, so the drag shown is a numerical error, not a prediction, and cars show no drag value at all.</li>
-              <li><b>Quoted, not measured here:</b> the NeuralFoil timings in the comparison table come from its paper.</li>
+              <li><b>Quoted, not measured here:</b> the FVM solve times and the Mach number of each trained case come from the paper. NeuralFoil's timing in the comparison table was measured here (it is viscous, so not comparable).</li>
             </ul>
           </details>
           {error && (
@@ -272,8 +276,8 @@ export default function App() {
 
         <Section id="pinn" cls="hide-present" eyebrow="Neural solver" title="PINN Lab">
           <div className="results-stack">
+            <PinnLab paused={paused} onPausedChange={setPaused} />
             <ShowdownCard />
-            <TrainingCard />
           </div>
         </Section>
 
@@ -283,8 +287,9 @@ export default function App() {
 
         <Section id="results" cls="hide-present" eyebrow="Evidence" title="Results">
           <div className="results-stack">
+            <ResultsTable rows={resultRows} error={resultsError} />
             <TradeoffCard />
-            <ComparisonCard result={result} />
+            <ComparisonCard result={result} rows={resultRows} />
             <PipelineCard />
           </div>
         </Section>

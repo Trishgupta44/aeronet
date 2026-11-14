@@ -389,7 +389,7 @@ export function FlowStage({ result, layers, paused, hero = false, onProbe, idp =
 }
 
 /** The explorer's field card: layer toggles, the stage, hover probe, colour bar and pause / fps controls. */
-export default function FlowCanvas({ result, layers, onLayersChange, paused, onPausedChange, idp = '', children, footer, ghost = null, stageRef = null }) {
+export default function FlowCanvas({ result, layers, onLayersChange, paused, onPausedChange, idp = '', children, footer, ghost = null, stageRef = null, title = 'Pressure field (Cp)', hint = 'Idealized potential flow (inviscid, no separation or wake). Isobars: Cp from −1.5 to 0.75, dashed where suction.' }) {
   const [probe, setProbe] = useState(null);
   const [fps, setFps] = useState(null);
 
@@ -407,7 +407,7 @@ export default function FlowCanvas({ result, layers, onLayersChange, paused, onP
 
   return (
     <section className="card">
-      <h2>Pressure field (Cp)</h2>
+      <h2>{title}</h2>
       <div className="flow-controls">
         <div className="seg" role="group" aria-label="Layers">
           {toggles.map(([key, label]) => (
@@ -437,7 +437,7 @@ export default function FlowCanvas({ result, layers, onLayersChange, paused, onP
         <div className="bar" id={`${idp}bar`} style={{ background: gradientCss() }} />
         <span>+1 stagnation</span>
       </div>
-      <div className="hint">Idealized potential flow (inviscid, no separation or wake). Isobars: Cp from −1.5 to 0.75, dashed where suction.</div>
+      <div className="hint">{hint}</div>
       {footer}
     </section>
   );

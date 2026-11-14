@@ -3,7 +3,7 @@
 export const HEADLINE = {
   pinnError: {
     value: '0.062',
-    label: 'PINN Cp error (RMS) against the FVM on the same 100×50 mesh',
+    label: 'RMS distance between the wall Cp of the PINN and the finite-volume solver on the same 100×50 mesh',
     tag: 'measured',
     source: 'results/summary.csv, experiment E2b, row pinn 100x50',
   },

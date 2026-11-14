@@ -53,3 +53,6 @@ export const solveShape = (body, signal) => request('/api/solve_shape', { method
 export const getShapes = () => request('/api/shapes');
 export const parseDat = (text, name) => request('/api/shapes/parse_dat', { method: 'POST', body: JSON.stringify({ text, name }) });
 export const getPolar = (body, signal) => request('/api/polar', { method: 'POST', body: JSON.stringify(body), signal });
+export const getPinnCases = () => request('/api/pinn/cases');
+export const getPinnCase = (id) => request(`/api/pinn/cases/${encodeURIComponent(id)}`);
+export const getResults = () => request('/api/results');
