@@ -51,6 +51,7 @@ def pinn_dir(tmp_path, monkeypatch):
     monkeypatch.setattr(pinn_cases, "CASES_DIR", d / "pinn_cases")
     monkeypatch.setattr(pinn_cases, "RESULTS_FILE", d / "results_summary.json")
     monkeypatch.setattr(pinn_cases, "SEED_RUNS_FILE", d / "seed_runs.json")
+    monkeypatch.setattr(pinn_cases, "ROUNDS_E1_FILE", d / "rounds_e1.json")
     return d
 
 

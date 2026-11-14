@@ -24,7 +24,8 @@ function buildMarks(data) {
 }
 
 function drawChart(g, w, h, data, marks, layout) {
-  const m = { l: 56, r: 92, t: 14, b: 40 };
+  const narrow = w < 430;
+  const m = { l: 56, r: narrow ? 78 : 92, t: 14, b: 40 };
   const xs = marks.flatMap((k) => [k.x, k.total].filter((v) => v != null));
   const ys = [...marks.map((k) => k.y), ...data.fvm.map((f) => f.rms)];
   const xlo = Math.pow(10, Math.floor(Math.log10(Math.min(...xs)) - 0.3));
@@ -40,12 +41,15 @@ function drawChart(g, w, h, data, marks, layout) {
   g.strokeStyle = cssVar('--grid');
   g.fillStyle = cssVar('--muted');
   g.lineWidth = 1;
+  const decades = Math.floor(Math.log10(xhi)) - Math.ceil(Math.log10(xlo)) + 1;
+  const skip = (w - m.l - m.r) / decades < 50 ? 2 : 1; // narrow chart: label every other decade
   for (let e = Math.ceil(Math.log10(xlo)); e <= Math.floor(Math.log10(xhi)); e += 1) {
     const x = X(10 ** e);
     g.beginPath();
     g.moveTo(x, m.t);
     g.lineTo(x, h - m.b);
     g.stroke();
+    if ((e - Math.ceil(Math.log10(xlo))) % skip) continue;
     g.textAlign = 'center';
     g.fillText(e < 0 ? `${(10 ** (e + 3)).toFixed(0)} ms` : `${10 ** e} s`, x, h - m.b + 16);
   }
@@ -84,6 +88,7 @@ function drawChart(g, w, h, data, marks, layout) {
 
   const color = (k) => cssVar(k.id === 'panel' ? '--lo' : '--up');
   const placed = [];
+  const drawn = []; // label boxes already drawn: a label that would overlap one is left out (hover still gives the numbers)
   marks.forEach((k) => {
     const px = X(k.x);
     const py = Y(k.y);
@@ -107,9 +112,14 @@ function drawChart(g, w, h, data, marks, layout) {
     else { g.moveTo(px, py - 6.5); g.lineTo(px + 6, py + 5); g.lineTo(px - 6, py + 5); g.closePath(); }
     g.fill();
     g.stroke();
-    g.fillStyle = cssVar('--muted');
-    g.textAlign = 'center';
-    g.fillText(k.label, px, py - 11);
+    const tw = g.measureText(k.label).width;
+    const box = { x0: px - tw / 2 - 2, x1: px + tw / 2 + 2, y0: py - 24, y1: py - 8 };
+    if (!narrow && !drawn.some((b) => b.x0 < box.x1 && box.x0 < b.x1 && b.y0 < box.y1 && box.y0 < b.y1)) {
+      g.fillStyle = cssVar('--muted');
+      g.textAlign = 'center';
+      g.fillText(k.label, px, py - 11);
+      drawn.push(box);
+    }
     placed.push({ px, py, detail: k.detail, k });
   });
   layout.current = placed;
@@ -121,7 +131,7 @@ function Chart({ data }) {
   const [hover, setHover] = useState('');
   const marks = buildMarks(data);
 
-  useCanvasDraw(ref, (w) => Math.max(280, Math.min(420, w * 0.5)), (g, w, h) => drawChart(g, w, h, data, marks, layout), [data]);
+  useCanvasDraw(ref, (w) => Math.max(260, Math.min(360, w * 0.58)), (g, w, h) => drawChart(g, w, h, data, marks, layout), [data]);
 
   const onMove = (e) => {
     const r = ref.current.getBoundingClientRect();
@@ -171,61 +181,66 @@ export default function TradeoffCard() {
 
   if (error) {
     return (
-      <section className="card">
-        <h2>Accuracy against cost</h2>
+      <section className="card card--evidence">
+        <p className="eyebrow">E2 · Cost</p>
         <div className="placeholder">The trade-off chart needs the results files, which this server does not have ({error}). Nothing is shown on purpose: there is no fake data on this page.</div>
       </section>
     );
   }
-  if (!data) return <section className="card"><h2>Accuracy against cost</h2><div className="status" role="status">Loading results…</div></section>;
+  if (!data) return <section className="card card--evidence"><p className="eyebrow">E2 · Cost</p><div className="status" role="status">Loading results…</div></section>;
 
   const note = gridSequencingNote(data);
   return (
-    <section className="card">
-      <h2>Accuracy against cost</h2>
-      <p className="hint">
-        NACA 0012, {data.case.alpha_deg}°, Mach {data.case.mach}. Error is the Cp RMS against the {data.reference} solution. Time is measured on this laptop
-        (PINN training seconds from results/summary.csv; the panel solve is timed now). Lower left is better.
+    <section className="card card--evidence" id="tradeoff">
+      <p className="eyebrow">E2 · Cost</p>
+      <h3 className="card-title">Accuracy against cost</h3>
+      <p className="card-lede">
+        NACA 0012, {data.case.alpha_deg}°, Mach {data.case.mach}. Error is the Cp RMS against the {data.reference} solution; time is measured on this laptop
+        (PINN training seconds from results/summary.csv, the panel solve timed now). Lower left is better.
       </p>
-      <Chart data={data} />
-      {note && <p className="status">{note}</p>}
-      <div style={{ overflowX: 'auto' }}>
-        <table>
-          <thead><tr><th>Method</th><th>Mesh</th><th>Time (this laptop)</th><th>Cp RMS error</th><th>Label</th></tr></thead>
-          <tbody>
-            {data.panel && <tr><td>Panel method</td><td>140 panels</td><td>{fmtSec(data.panel.seconds)} per solve</td><td>{fmtRms(data.panel.rms)}</td><td>measured</td></tr>}
-            {data.neuralfoil.available && (
-              <tr><td>NeuralFoil (viscous)</td><td>–</td><td>{data.neuralfoil.call_ms.toFixed(1)} ms per call</td><td>no Cp output</td><td>measured now; {data.neuralfoil.note}</td></tr>
-            )}
-            {data.points.map((p) => (
-              <tr key={p.id}>
-                <td>{p.label}</td>
-                <td>{mesh(p.mesh)}</td>
-                <td>
-                  {p.seconds != null ? fmtSec(p.seconds) : `withheld (${p.seconds_note ?? 'no time recorded'})`}
-                  {p.grid_sequenced && p.total_seconds != null && ` (${fmtSec(p.total_seconds)} with the coarse run)`}
-                </td>
-                <td>{fmtRms(p.rms)}</td>
-                <td>measured</td>
-              </tr>
-            ))}
-            {data.fvm.map((f) => (
-              <tr key={f.mesh}>
-                <td>FVM</td>
-                <td>{mesh(f.mesh)}</td>
-                <td>{fmtSec(f.paper_seconds)} (quoted, paper Table 1, other hardware)</td>
-                <td>{fmtRms(f.rms)}</td>
-                <td>error measured; time quoted</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-      <p className="src">
-        Sources: results/summary.csv (E2 and B0 rows). FVM times are quoted from the NNfoil paper (Cao, Song &amp; Zhang), Table 1, which its authors say is not a rigorous
-        comparison; they come from other hardware, so they are shown in the table only. NeuralFoil (Peter Sharpe) gives Cl and Cd but no pressure distribution, so it has
-        no point on this chart.
-      </p>
+      <div className="tradeoff-chart"><Chart data={data} /></div>
+      {note && <p className="tradeoff-note">{note}</p>}
+      <details className="fold fold--inner">
+        <summary><span>Show the table</span></summary>
+        <div className="fold-body">
+          <div className="table-scroll">
+            <table className="results-table compact">
+              <thead><tr><th>Method</th><th>Mesh</th><th className="num">Time (this laptop)</th><th className="num">Cp RMS</th><th>Label</th></tr></thead>
+              <tbody>
+                {data.panel && <tr><td>Panel method</td><td>140 panels</td><td className="num mono">{fmtSec(data.panel.seconds)} per solve</td><td className="num mono">{fmtRms(data.panel.rms)}</td><td>measured</td></tr>}
+                {data.neuralfoil.available && (
+                  <tr><td>NeuralFoil (viscous)</td><td>–</td><td className="num mono">{data.neuralfoil.call_ms.toFixed(1)} ms per call</td><td className="num">no Cp output</td><td title={data.neuralfoil.note}>measured now</td></tr>
+                )}
+                {data.points.map((p) => (
+                  <tr key={p.id}>
+                    <td>{p.label}</td>
+                    <td className="mono">{mesh(p.mesh)}</td>
+                    <td className="num mono" title={p.seconds == null ? p.seconds_note ?? undefined : undefined}>
+                      {p.seconds != null ? fmtSec(p.seconds) : 'withheld'}
+                      {p.grid_sequenced && p.total_seconds != null && ` (${fmtSec(p.total_seconds)} with the coarse run)`}
+                    </td>
+                    <td className="num mono">{fmtRms(p.rms)}</td>
+                    <td>measured</td>
+                  </tr>
+                ))}
+                {data.fvm.map((f) => (
+                  <tr key={f.mesh}>
+                    <td>FVM</td>
+                    <td className="mono">{mesh(f.mesh)}</td>
+                    <td className="num mono">{fmtSec(f.paper_seconds)} <span className="tbd">quoted, other hardware</span></td>
+                    <td className="num mono">{fmtRms(f.rms)}</td>
+                    <td>error measured, time quoted</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="src">
+            Sources: results/summary.csv (E2 and B0 rows). FVM times are quoted from the NNfoil paper (Cao, Song &amp; Zhang), Table 1, which its authors say is not a rigorous
+            comparison; they come from other hardware, so they are shown in the table only. NeuralFoil gives Cl and Cd but no pressure distribution, so it has no point on this chart.
+          </p>
+        </div>
+      </details>
     </section>
   );
 }

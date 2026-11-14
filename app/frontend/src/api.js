@@ -56,3 +56,4 @@ export const getPolar = (body, signal) => request('/api/polar', { method: 'POST'
 export const getPinnCases = () => request('/api/pinn/cases');
 export const getPinnCase = (id) => request(`/api/pinn/cases/${encodeURIComponent(id)}`);
 export const getResults = () => request('/api/results');
+export const getRoundsE1 = () => request('/api/results/e1_rounds');

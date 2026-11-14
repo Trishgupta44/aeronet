@@ -4,7 +4,6 @@ import { AirfoilCard, FlowCard, ReferenceCard, SolverCard } from './components/C
 import CaseView from './components/CaseView.jsx';
 import DrawSection from './components/DrawSection.jsx';
 import { DEFAULT_LAYERS, FlowStage, HERO_LAYERS, prefersReducedMotion } from './components/FlowCanvas.jsx';
-import { ComparisonCard, PipelineCard } from './components/InfoCards.jsx';
 import CardGrid from './components/CardGrid.jsx';
 import Hero from './components/Hero.jsx';
 import Section from './components/Section.jsx';
@@ -12,9 +11,8 @@ import SiteFooter from './components/SiteFooter.jsx';
 import BackendBanner from './components/BackendBanner.jsx';
 import OptimizeCard from './components/OptimizeCard.jsx';
 import PinnLab from './components/PinnLab.jsx';
-import ResultsTable from './components/ResultsTable.jsx';
+import ResultsPage from './components/ResultsPage.jsx';
 import ShowdownCard from './components/ShowdownCard.jsx';
-import TradeoffCard from './components/TradeoffCard.jsx';
 import ViscousCard from './components/ViscousCard.jsx';
 import SiteHeader from './components/SiteHeader.jsx';
 import { DrawThumb, ExploreThumb, LabThumb, ResultsThumb } from './components/Thumbs.jsx';
@@ -310,13 +308,16 @@ export default function App() {
           <CardGrid items={cards} />
         </Section>
 
-        <Section id="results" cls="hide-present" hidden={page !== 'results'} eyebrow="Evidence" title="Results">
-          <div className="results-stack">
-            <ResultsTable rows={resultRows} error={resultsError} />
-            <TradeoffCard />
-            <ComparisonCard result={result} rows={resultRows} />
-            <PipelineCard />
-          </div>
+        <Section
+          id="results" cls="hide-present section--results" hidden={page !== 'results'} eyebrow="Evidence" title="Results"
+          aside={(
+            <>
+              <p>Measured on one laptop CPU. Every number is tagged <span className="tag tag--measured">measured</span>, <span className="tag tag--quoted">quoted</span> or <span className="tag tag--fitted">fitted</span>.</p>
+              <p className="hint">Quoted numbers are copied from the paper (arXiv 2401.08705) and not re-run here; fitted ones are tuned to data.</p>
+            </>
+          )}
+        >
+          <ResultsPage rows={resultRows} error={resultsError} result={result} />
         </Section>
       </main>
       <SiteFooter />

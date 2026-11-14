@@ -232,3 +232,26 @@ def test_real_export_matches_the_summary_row(repo):
     assert case["metrics"]["rms"] == pytest.approx(row["rms_cp"], abs=1e-6)
     assert case["metrics"]["cl"] == pytest.approx(row["cl"], abs=1e-5)
     assert case["timing"]["train_s"] == row["train_s"]
+
+
+def test_e1_rounds_keep_the_trajectory_columns_and_the_seed(tmp_path):
+    src = tmp_path / "e1_rounds.csv"
+    src.write_text("run_id,method,case,mesh,round,cp_rms,cp_max,cl,cd,loss,time_s\n"
+                   "a,pinn,NACA0012_a4_s0,50x25,1,0.19,0.9,0.30,0.01,0.001,52\n"
+                   "a,pinn,NACA0012_a4_s0,50x25,2,0.037,0.1,0.48,0.004,0.0003,105\n"
+                   "b,pinn_nopos,NACA0012_a4_s2,50x25,1,,0.9,,0.01,0.001,52\n")
+    out = ex.write_e1_rounds(tmp_path / "o" / "rounds_e1.json", src)
+    d = json.loads(out.read_text(encoding="utf8"))
+    assert d["source"] == "results/e1_rounds.csv" and [r["run_id"] for r in d["runs"]] == ["a", "b"]
+    a, b = d["runs"]
+    assert a["positivity"] is True and a["seed"] == 0 and a["rounds"] == [1, 2] and a["cp_rms"] == [0.19, 0.037] and a["cl"] == [0.3, 0.48]
+    assert b["positivity"] is False and b["seed"] == 2 and b["cp_rms"] == [None]
+
+
+def test_real_e1_rounds_file_has_the_six_e1_runs(repo, tmp_path):
+    src = repo / "results" / "e1_rounds.csv"
+    if not src.exists():
+        pytest.skip("no results/e1_rounds.csv here")
+    d = ex.e1_rounds(src)
+    assert len(d["runs"]) == 6 and sorted((r["positivity"], r["seed"]) for r in d["runs"]) == [(False, 0), (False, 1), (False, 2), (True, 0), (True, 1), (True, 2)]
+    assert all(len(r["rounds"]) == len(r["cp_rms"]) == len(r["cl"]) >= 18 for r in d["runs"])

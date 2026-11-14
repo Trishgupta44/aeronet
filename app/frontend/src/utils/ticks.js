@@ -23,3 +23,16 @@ export function decadeTicks(kLo, kHi, max = 5) {
   for (let k = Math.ceil(kLo); k <= kHi; k += step) out.push(k);
   return out;
 }
+
+/** Ticks at 1, 2 and 5 of every decade between 10^kLo and 10^kHi (exponents): `[value, label]`. For log axes that span only one or two decades. */
+export function logTicks125(kLo, kHi) {
+  const out = [];
+  for (let k = Math.floor(kLo); k <= Math.ceil(kHi); k++) {
+    for (const m of [1, 2, 5]) {
+      const v = Number((m * 10 ** k).toPrecision(6));
+      const lv = Math.log10(v);
+      if (lv >= kLo - 1e-9 && lv <= kHi + 1e-9) out.push([v, k >= -3 && k <= 3 ? String(v) : v.toExponential(0)]);
+    }
+  }
+  return out;
+}

@@ -6,9 +6,10 @@ clone: no ``NNfoil/``, no ``results/`` and no torch are needed at run time.
 * ``data/pinn_cases/<case_id>.json``  one trained case each (roadmap 5.7: surface Cp, reference, panel solution, metrics,
   timing, log, per-round snapshots, flow field),
 * ``data/results_summary.json``       the rows of ``results/summary.csv``,
-* ``data/seed_runs.json``             the seed-to-seed spread groups behind the same-mesh showdown.
+* ``data/seed_runs.json``             the seed-to-seed spread groups behind the same-mesh showdown,
+* ``data/rounds_e1.json``             the round-by-round Cp RMS of the six E1 runs (the training-trajectory chart of the Results page).
 
-The module attributes ``CASES_DIR``, ``RESULTS_FILE`` and ``SEED_RUNS_FILE`` can be monkeypatched (the tests do).
+The module attributes ``CASES_DIR``, ``RESULTS_FILE``, ``SEED_RUNS_FILE`` and ``ROUNDS_E1_FILE`` can be monkeypatched (the tests do).
 Small files are parsed once and cached by modification time; a case is cached WITHOUT its flow field (the field is
 about 1 MB of numbers per case and only the Lab needs it: the endpoint streams the file itself). Nothing here is computed:
 a number is whatever the export wrote.
@@ -24,6 +25,7 @@ DATA_DIR = Path(__file__).resolve().parent.parent / "data"
 CASES_DIR = DATA_DIR / "pinn_cases"
 RESULTS_FILE = DATA_DIR / "results_summary.json"
 SEED_RUNS_FILE = DATA_DIR / "seed_runs.json"
+ROUNDS_E1_FILE = DATA_DIR / "rounds_e1.json"
 
 _ID = re.compile(r"[a-z0-9_]+")  # a case id is a run id: lowercase letters, digits and underscores only
 _cache: dict[Path, tuple[tuple[int, int], object]] = {}
@@ -116,3 +118,10 @@ def load_seed_runs() -> dict:
     if not SEED_RUNS_FILE.is_file():
         return {}
     return _read_json(SEED_RUNS_FILE).get("groups", {})
+
+
+def load_rounds_e1() -> dict:
+    """``{"source", "runs": [{run_id, method, positivity, seed, mesh, rounds, cp_rms, cl}]}``: the E1 trajectories; ``{}`` if the file is missing."""
+    if not ROUNDS_E1_FILE.is_file():
+        return {}
+    return _read_json(ROUNDS_E1_FILE)

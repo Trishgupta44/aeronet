@@ -5,7 +5,7 @@
 // Writes public/cache/bundle.json: { generated_utc, api_version, entries: { <cacheKey>: <answer> } }. The requests are built
 // with the same cacheKey() the browser uses, for every airfoil preset and every shape in the library at its starting angle
 // and Mach number, plus the PINN showdown, the trade-off chart, the viscous check and the Cl polars, the results table and
-// a handful of PINN Lab cases (the list offered offline is cut down to exactly those cases). Nothing is invented: every entry is a
+// the E1 round-by-round data of the Results page, a handful of PINN Lab cases (the list offered offline is cut down to exactly those cases). Nothing is invented: every entry is a
 // real answer of the running backend. The only change made to a saved PINN case is a smaller flow field (2x2 block means,
 // noted in the case as `field_note`), to keep the file size reasonable.
 
@@ -101,6 +101,7 @@ const sample = entries[cacheKey('/api/reference/sample')];
 
 // PINN Lab: the case list (only the saved cases), the saved cases, and the results table
 await save('/api/results');
+await save('/api/results/e1_rounds'); // the Results page's training-trajectory chart
 const pinnList = await call('/api/pinn/cases');
 const pinnSaved = [];
 for (const id of PINN_CASES) {

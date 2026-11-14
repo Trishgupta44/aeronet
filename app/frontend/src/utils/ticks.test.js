@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { decadeLabel, decadeTicks, niceTicks } from './ticks.js';
+import { decadeLabel, decadeTicks, logTicks125, niceTicks } from './ticks.js';
 
 describe('niceTicks', () => {
   it('picks round steps inside the range', () => {
@@ -22,5 +22,15 @@ describe('decade ticks', () => {
   it('thins the decades so at most `max` labels are drawn', () => {
     expect(decadeTicks(-3, 0, 5)).toEqual([-3, -2, -1, 0]);
     expect(decadeTicks(9, 18, 5)).toEqual([9, 11, 13, 15, 17]);
+  });
+});
+
+describe('log ticks 1-2-5', () => {
+  it('gives 1, 2 and 5 of each decade inside the range, with plain labels', () => {
+    expect(logTicks125(Math.log10(0.02), Math.log10(0.3)).map(([v]) => v)).toEqual([0.02, 0.05, 0.1, 0.2]);
+    expect(logTicks125(Math.log10(0.02), Math.log10(0.3)).map(([, l]) => l)).toEqual(['0.02', '0.05', '0.1', '0.2']);
+  });
+  it('is empty for an empty range', () => {
+    expect(logTicks125(-1, -1.01)).toEqual([]);
   });
 });

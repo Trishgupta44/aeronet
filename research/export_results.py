@@ -7,7 +7,9 @@ Writes, next to each other under ``--out`` (default ``app/backend/data``):
 * ``pinn_cases/<run_id>.json``  one self-contained case per run in ``CASES`` (the format of roadmap 5.7, plus a few
   extra keys: ``config``, ``source``, ``fvm_same_mesh``, ``notes``),
 * ``results_summary.json``      the rows of ``results/summary.csv`` (numeric columns as numbers, empty cells as null),
-* ``seed_runs.json``            seed-to-seed spread groups of the same-mesh showdown (final-round curves of the seed runs).
+* ``seed_runs.json``            seed-to-seed spread groups of the same-mesh showdown (final-round curves of the seed runs),
+* ``rounds_e1.json``            the round-by-round Cp RMS and Cl of the six E1 runs (``results/e1_rounds.csv``, about 10 KB), for
+  the training-trajectory chart of the Results page.
 
 The backend only serves these files (``aeronet/pinn_cases.py``): no torch, no ``NNfoil/`` and no ``results/runs/`` are
 needed at run time. Nothing is recomputed that a run folder or the summary already holds, except the Cp error
@@ -46,6 +48,7 @@ import runs  # noqa: E402
 APP_DATA = ROOT / "app" / "backend" / "data"
 SUMMARY_CSV = ROOT / "results" / "summary.csv"
 SEED_CHECK_CSV = ROOT / "results" / "seed_check.csv"
+E1_ROUNDS_CSV = ROOT / "results" / "e1_rounds.csv"
 E4_TIMING = ROOT / "results" / "e4_timing.json"
 FVM_DIR = ROOT / "NNfoil" / "FVM_Cp"
 
@@ -486,6 +489,28 @@ def write_seed_runs(rows, out=APP_DATA / "seed_runs.json", runs_root=runs.RUNS, 
     return out
 
 
+def e1_rounds(path=E1_ROUNDS_CSV) -> dict:
+    """``{"source", "runs": [{run_id, method, positivity, seed, mesh, rounds, cp_rms, cl}]}``: the E1 trajectories, in file order.
+    Only the columns the chart needs are kept; ``cp_rms`` is None for a round without one."""
+    by_run: dict = {}
+    with Path(path).open(newline="", encoding="utf8") as f:
+        for r in csv.DictReader(f):
+            run = by_run.setdefault(r["run_id"], {
+                "run_id": r["run_id"], "method": r["method"], "positivity": r["method"] == "pinn",
+                "seed": int(re.search(r"_s(\d+)$", r["case"]).group(1)), "mesh": r["mesh"], "rounds": [], "cp_rms": [], "cl": []})
+            run["rounds"].append(int(r["round"]))
+            run["cp_rms"].append(_num(r["cp_rms"]))
+            run["cl"].append(_num(r["cl"]))
+    return {"source": "results/e1_rounds.csv", "runs": list(by_run.values())}
+
+
+def write_e1_rounds(out=APP_DATA / "rounds_e1.json", path=E1_ROUNDS_CSV) -> Path:
+    out = Path(out)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(_dumps(e1_rounds(path)), encoding="utf8")
+    return out
+
+
 # ---------------------------------------------------------------------------------------------- everything
 def export_all(out=APP_DATA, only=None, width=340, runs_root=runs.RUNS, summary_csv=SUMMARY_CSV, verbose=True) -> list[Path]:
     out = Path(out)
@@ -519,6 +544,8 @@ def export_all(out=APP_DATA, only=None, width=340, runs_root=runs.RUNS, summary_
     if not only:
         written.append(write_summary_json(summary_csv, out / "results_summary.json"))
         written.append(write_seed_runs(rows, out / "seed_runs.json", runs_root))
+        if E1_ROUNDS_CSV.exists():
+            written.append(write_e1_rounds(out / "rounds_e1.json"))
     return written
 
 

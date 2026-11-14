@@ -89,6 +89,24 @@ def test_results_is_empty_when_the_file_is_missing_and_the_rows_when_present(pin
     assert got == rows and got[0]["rms_cp"] == 0.014451 and got[1]["train_s"] is None and got[0]["source"] == "measured"
 
 
+def test_e1_rounds_is_a_503_when_missing_and_the_file_when_present(pinn_dir):
+    r = client.get("/api/results/e1_rounds")
+    assert r.status_code == 503 and "not available" in r.json()["detail"]
+    data = {"source": "results/e1_rounds.csv", "runs": [{"run_id": "a", "method": "pinn", "positivity": True, "seed": 0, "mesh": "50x25",
+                                                          "rounds": [1, 2], "cp_rms": [0.19, 0.037], "cl": [0.3, 0.48]}]}
+    (pinn_dir / "rounds_e1.json").write_text(json.dumps(data), encoding="utf8")
+    assert client.get("/api/results/e1_rounds").json() == data
+
+
+def test_real_e1_rounds_has_six_equal_length_runs():
+    if not pinn_cases.ROUNDS_E1_FILE.exists():
+        pytest.skip("no export here")
+    d = client.get("/api/results/e1_rounds").json()
+    assert len(d["runs"]) == 6
+    for r in d["runs"]:
+        assert len(r["rounds"]) == len(r["cp_rms"]) == len(r["cl"]) and r["mesh"] == "50x25"
+
+
 def test_cases_are_reread_when_the_file_changes(pinn_dir):
     write_case(pinn_dir, make_case("fixture_case"))
     assert client.get("/api/pinn/cases").json()[0]["rms"] == 0.0145

@@ -224,6 +224,15 @@ def get_results() -> list[dict]:
     return pinn_cases.load_results()
 
 
+@app.get("/api/results/e1_rounds")
+def get_e1_rounds() -> dict:
+    """Round-by-round Cp RMS and Cl of the six E1 runs (50x25, positivity on or off, seeds 0 to 2), from results/e1_rounds.csv."""
+    data = pinn_cases.load_rounds_e1()
+    if not data:
+        raise HTTPException(status_code=503, detail="The E1 round-by-round data is not available on this server.")
+    return data
+
+
 @app.get("/api/shapes", response_model=list[ShapePreset])
 def list_shapes() -> list[dict]:
     return SHAPES
