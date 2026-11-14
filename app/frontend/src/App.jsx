@@ -22,7 +22,7 @@ import { HEADLINE } from './data/headline.js';
 import { useResults } from './hooks/useResults.js';
 import { useSolve } from './hooks/useSolve.js';
 import { checkNacaCode } from './utils/naca.js';
-import { NAV_TITLES, pageFromHash } from './utils/route.js';
+import { NAV_TITLES, pageFromAddress, pageFromHash } from './utils/route.js';
 import { readState, writeState } from './utils/urlState.js';
 
 // Shown until (or if) the backend answers, so the layout never jumps.
@@ -67,7 +67,7 @@ export default function App() {
   const [drawLayers, setDrawLayers] = useState(DEFAULT_LAYERS);
   const [paused, setPaused] = useState(prefersReducedMotion);
   // The page (tab) on show: home, explore, draw, pinn or results. The #hash of the address says which; links are plain #hash links.
-  const [page, setPage] = useState(() => (PRESENT ? START.tab : pageFromHash(window.location.hash) ?? (params.has('tab') ? START.tab : 'home')));
+  const [page, setPage] = useState(() => (PRESENT ? START.tab : pageFromAddress(window.location.hash, window.location.search)));
   const [tab, setTab] = useState(START.tab); // the section whose state the page address follows (explore or draw)
   const [drawState, setDrawState] = useState(null);
   const [drawRequest, setDrawRequest] = useState(null);
