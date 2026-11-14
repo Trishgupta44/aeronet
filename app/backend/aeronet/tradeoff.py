@@ -20,6 +20,7 @@ import statistics
 from time import perf_counter
 
 from . import neural, pinn_data
+from .pinn_data import _num
 from .panel import solve as panel_solve
 
 # NNfoil paper, Table 1 (NACA 0012, 4 degrees, Mach 0.4), as quoted in docs/verification.md. Different hardware; the paper says
@@ -38,10 +39,6 @@ def measure_panel_seconds() -> float:
         panel_solve("0012", 4.0, 0.4, 70)
         times.append(perf_counter() - t0)
     return statistics.median(times)
-
-
-def _num(text):
-    return pinn_data._num(text)
 
 
 def _total_seconds(rows, key, run_to_key, depth=0):

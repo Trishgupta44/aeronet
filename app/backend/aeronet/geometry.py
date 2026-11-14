@@ -61,10 +61,8 @@ def _thickness(t: float, x: np.ndarray) -> np.ndarray:
     return 5 * t * (0.2969 * np.sqrt(x) - 0.1260 * x - 0.3516 * x**2 + 0.2843 * x**3 - 0.1036 * x**4)
 
 
-def naca4(code: str, n_half: int = 80) -> Airfoil:
-    """Build a NACA 4-digit airfoil with ``2 * n_half`` nodes (cosine spacing)."""
-    validate_code(code)
-    m, p, t = int(code[0]) / 100, int(code[1]) / 10, int(code[2:]) / 100
+def from_parameters(m: float, p: float, t: float, n_half: int, code: str = "custom") -> Airfoil:
+    """Airfoil of the NACA 4-digit family with continuous camber ``m``, position ``p`` and thickness ``t``."""
     proto = Airfoil(code, m, p, t, np.empty(0), np.empty(0))
 
     k = np.arange(n_half + 1)
@@ -77,3 +75,9 @@ def naca4(code: str, n_half: int = 80) -> Airfoil:
     X = np.concatenate([xu, xl[lower]])
     Y = np.concatenate([yu, yl[lower]])
     return Airfoil(code, m, p, t, X, Y)
+
+
+def naca4(code: str, n_half: int = 80) -> Airfoil:
+    """Build a NACA 4-digit airfoil with ``2 * n_half`` nodes (cosine spacing)."""
+    validate_code(code)
+    return from_parameters(int(code[0]) / 100, int(code[1]) / 10, int(code[2:]) / 100, n_half, code)

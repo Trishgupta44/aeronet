@@ -18,14 +18,13 @@ _WORKERS = min(4, os.cpu_count() or 1)
 
 def inside_body(X: np.ndarray, Y: np.ndarray, px: np.ndarray, py: np.ndarray) -> np.ndarray:
     """Ray-casting point-in-polygon test, vectorised over the points."""
-    x_i, y_i = X, Y
     x_j, y_j = np.roll(X, 1), np.roll(Y, 1)
     inside = np.zeros(px.shape, dtype=bool)
     for s in range(0, px.size, _CHUNK):
         qx, qy = px[s : s + _CHUNK, None], py[s : s + _CHUNK, None]
         with np.errstate(divide="ignore", invalid="ignore"):
-            crosses = (y_i > qy) != (y_j > qy)
-            x_at = (x_j - x_i) * (qy - y_i) / (y_j - y_i) + x_i
+            crosses = (Y > qy) != (y_j > qy)
+            x_at = (x_j - X) * (qy - Y) / (y_j - Y) + X
             hit = crosses & (qx < x_at)
         inside[s : s + _CHUNK] = (hit.sum(axis=1) % 2) == 1
     return inside

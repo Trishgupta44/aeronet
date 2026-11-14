@@ -2,26 +2,24 @@
 
 from __future__ import annotations
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from typing import Annotated
+
+from pydantic import AfterValidator, BaseModel, Field, field_validator, model_validator
 
 from .geometry import validate_code
 
 Point = tuple[float, float, float]  # (x/c, y/c, Cp)
+NacaCode = Annotated[str, AfterValidator(validate_code)]
 
 
 class SolveRequest(BaseModel):
     solver: str = Field("panel", description="Solver id, see GET /api/solvers")
-    code: str = Field(..., description="NACA 4-digit code, e.g. 2412")
+    code: NacaCode = Field(..., description="NACA 4-digit code, e.g. 2412")
     alpha: float = Field(4.0, ge=-20, le=20, description="Angle of attack in degrees")
     mach: float = Field(0.4, ge=0.0, le=0.7, description="Free-stream Mach number (subsonic only)")
     n_half: int = Field(70, ge=20, le=200, description="Panels per surface")
     grid_width: int = Field(0, ge=0, le=400, description="Pressure-field grid width in cells; 0 = no field")
     reference: list[Point] | None = Field(None, max_length=20000, description="Reference Cp points to compare with")
-
-    @field_validator("code")
-    @classmethod
-    def _check_code(cls, v: str) -> str:
-        return validate_code(v)
 
 
 class SurfaceData(BaseModel):
@@ -138,24 +136,14 @@ class PolarResponse(BaseModel):
 class OptimizeRequest(BaseModel):
     target_cl: float = Field(0.6, ge=0.0, le=1.5, description="Lift coefficient the design must give")
     min_thickness: float = Field(0.09, ge=0.06, le=0.15, description="Smallest allowed thickness, fraction of chord")
-    code: str = Field("0012", description="NACA 4-digit airfoil to compare against")
-
-    @field_validator("code")
-    @classmethod
-    def _check_code(cls, v: str) -> str:
-        return validate_code(v)
+    code: NacaCode = Field("0012", description="NACA 4-digit airfoil to compare against")
 
 
 class ViscousRequest(BaseModel):
-    code: str = Field(..., description="NACA 4-digit code (airfoils only)")
+    code: NacaCode = Field(..., description="NACA 4-digit code (airfoils only)")
     alpha: float = Field(4.0, ge=-20, le=20, description="Angle of attack in degrees")
     re: float = Field(1.0e6, ge=1.0e4, le=1.0e8, description="Chord Reynolds number")
     model_size: str = Field("large", pattern="^(xxsmall|xsmall|small|medium|large|xlarge|xxlarge|xxxlarge)$")
-
-    @field_validator("code")
-    @classmethod
-    def _check_code(cls, v: str) -> str:
-        return validate_code(v)
 
 
 class ViscousPolar(BaseModel):

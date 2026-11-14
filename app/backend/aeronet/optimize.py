@@ -18,7 +18,7 @@ from time import perf_counter
 import numpy as np
 
 from . import compressibility
-from .geometry import Airfoil, _thickness, validate_code
+from .geometry import Airfoil, from_parameters, validate_code
 from .panel import solve_xy
 
 LABEL = "Inviscid panel-method optimisation, no drag"
@@ -31,15 +31,8 @@ TIME_LIMIT_S = 12.0
 
 
 def build(m: float, p: float, t: float, n_half: int) -> Airfoil:
-    """Same construction as geometry.naca4 but with continuous parameters (checked against it in the tests)."""
-    proto = Airfoil("custom", m, p, t, np.empty(0), np.empty(0))
-    k = np.arange(n_half + 1)
-    x = 0.5 * (1 + np.cos(np.pi * k / n_half))
-    yc, phi, yt = proto.camber(x), np.arctan(proto.dcamber(x)), _thickness(t, x)
-    xu, yu = x - yt * np.sin(phi), yc + yt * np.cos(phi)
-    xl, yl = x + yt * np.sin(phi), yc - yt * np.cos(phi)
-    lower = slice(n_half - 1, 0, -1)
-    return Airfoil("custom", m, p, t, np.concatenate([xu, xl[lower]]), np.concatenate([yu, yl[lower]]))
+    """Same construction as geometry.naca4 but with continuous parameters."""
+    return from_parameters(m, p, t, n_half)
 
 
 def design_at_cl(m: float, p: float, t: float, target_cl: float, n_half: int = N_HALF_SEARCH) -> dict:
