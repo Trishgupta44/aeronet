@@ -204,6 +204,7 @@ def parse_md(md: str) -> dict:
 
 def build_doc(md: str, out_path, rows=None) -> dict:
     """Fill the placeholders (hard error on a missing number) and write the .docx. Returns a summary dict."""
+    md = common_numbers.apply_fields(md)
     bad = fill_in_violations(md)
     if bad:
         raise ValueError("[FILL IN] field outside the cover block or a Signature section: " + bad[0])
@@ -297,7 +298,7 @@ def main(argv=None):
         if not path.exists():
             print(f"{name}: no source yet")
             continue
-        text = path.read_text(encoding="utf8")
+        text = common_numbers.apply_fields(path.read_text(encoding="utf8"))
         errs = common_numbers.check_text(text, rows)
         for e in errs:
             print(f"MISSING in {name}: {e}")

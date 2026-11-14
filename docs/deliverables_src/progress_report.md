@@ -1,8 +1,8 @@
 # AeroNet: Progress Report
 Physics-informed neural network solver for airfoil aerodynamics (built on NNfoil by Cao, Song and Zhang, arXiv 2401.08705)
-Students: [FILL IN: student names and enrolment numbers]
-Supervisor: [FILL IN: supervisor name]
-Programme and semester: [FILL IN: programme, semester and year]
+Students: {{field:students_names_enrol}}
+Supervisor: {{field:supervisor_name}}
+Programme and semester: {{field:programme_semester_year}}
 Reporting period and date: [FILL IN: reporting period and date of submission]
 
 ## 1. Summary

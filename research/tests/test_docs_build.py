@@ -11,6 +11,7 @@ HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent / "docs_build"))
 
 import build_docx  # noqa: E402
+import fields as pf  # noqa: E402
 import numbers_fill as nf  # noqa: E402
 from docx import Document  # noqa: E402
 from docx.oxml.ns import qn  # noqa: E402
@@ -170,7 +171,7 @@ def test_toc_field_and_static_lists(tmp_path):
 def test_report_source_has_no_missing_numbers_and_builds(tmp_path):
     """The committed report source: every placeholder resolves, and the template's chapters are all there."""
     src = nf.REPO / "docs" / "deliverables_src" / "report.md"
-    text = src.read_text(encoding="utf8")
+    text = pf.apply(src.read_text(encoding="utf8"))
     rows = nf.load_rows()
     assert nf.check(text, rows) == []
     filled = nf.fill(text, rows)

@@ -1,6 +1,6 @@
 # Related Papers Guide: four papers in plain language
 AeroNet project: companion note for the panel and the viva
-Prepared by: [FILL IN: team member names]
+Prepared by: {{field:students_names}}
 
 ## How to read the tags
 

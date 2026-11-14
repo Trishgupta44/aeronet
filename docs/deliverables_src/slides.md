@@ -2,9 +2,9 @@
 Layout: title
 Eyebrow: Major project  /  panel presentation
 - A physics-informed neural network solver for airfoil flow: verified, validated and shown live
-- Team: [FILL IN: team member names and enrolment numbers]
-- Course: [FILL IN: course, semester and year]
-- Guide: [FILL IN: supervisor name]
+- Team: {{field:students_names_enrol}}
+- Course: {{field:course_semester_year}}
+- Guide: {{field:supervisor_name_designation}}
 Notes:
 Open with one sentence: AeroNet takes a published physics-informed neural network (PINN) solver for airflow around wings, called NNfoil, by Cao, Song and Zhang (arXiv 2401.08705), and asks three honest questions: is the code correct, does it reproduce the paper's claim on a laptop CPU, and can we show it live.
 
@@ -12,7 +12,7 @@ Say the credit out loud: NNfoil is their work. We did not invent the method. Wha
 
 Say the rule of the talk: every number on a slide is labelled measured (we ran it on this laptop), quoted (copied from the paper) or fitted (tuned to data). Where a result is negative we show it.
 
-The three fields on this slide are filled in by the team before the presentation.
+The team, course and guide lines come from docs/deliverables_src/fields.json.
 
 ---
 # Predicting the air around a wing is slow

@@ -1,33 +1,34 @@
 <!-- AeroNet project report, institute capstone template. Built by research/docs_build/build_all.py.
 Numbers are double-brace placeholders (experiment, method, mesh, column, optional case) filled from results/summary.csv; a missing number is a hard error.
+People-specific details are field placeholders (double braces, field: and a key) filled from docs/deliverables_src/fields.json; an empty value stays a highlighted fill-in field.
 Highlighted fill-in fields are things only the team can supply: see docs/deliverables_src/FILL_IN_CHECKLIST.md. -->
 
 @center[size=18,bold,before=36,after=8]: Jaypee Institute of Information Technology, Noida
-@center[size=13,after=14]: [FILL IN: department line, for example "Department of Computer Science & Engineering and IT"]
+@center[size=13,after=14]: {{field:department_line}}
 @logo: docs/deliverables_src/jiit_logo.png | [FILL IN: institute logo image. Save it as docs/deliverables_src/jiit_logo.png and rebuild]
 @center[size=15,before=30,after=24]: **Major Project Title:** AeroNet: A Physics-Informed Neural Network Solver for Airfoil Aerodynamics
 
 @plaintable
 | Enrol. No. | Name of Student |
 |---|---|
-| [FILL IN: enrolment number, student A] | [FILL IN: name, student A] |
-| [FILL IN: enrolment number, student B] | [FILL IN: name, student B] |
-| [FILL IN: enrolment number, student C] | [FILL IN: name, student C] |
+| {{field:student_a_enrol}} | {{field:student_a_name}} |
+| {{field:student_b_enrol}} | {{field:student_b_name}} |
+| {{field:student_c_enrol}} | {{field:student_c_name}} |
 
-@center[size=12,before=24,after=2]: Course Name: [FILL IN: course name, for example Major Project 2]
-@center[size=12,after=2]: Program: [FILL IN: programme, for example B. Tech. CS&E / B. Tech. IT]
-@center[size=12,after=2]: [FILL IN: semester, for example 8th Sem]
-@center[size=12,bold,before=18]: [FILL IN: academic year, for example 2025 - 2026]
+@center[size=12,before=24,after=2]: Course Name: {{field:course}}
+@center[size=12,after=2]: Program: {{field:programme}}
+@center[size=12,after=2]: {{field:semester}}
+@center[size=12,bold,before=18]: {{field:academic_year}}
 
 #* Certificate
 
-This is to certify that the project report entitled **AeroNet: A Physics-Informed Neural Network Solver for Airfoil Aerodynamics**, submitted by [FILL IN: names and enrolment numbers of the students] in partial fulfilment of the requirements for the award of the degree of [FILL IN: degree and programme] at Jaypee Institute of Information Technology, Noida, during the academic session [FILL IN: academic year], is a record of the work carried out by them under my supervision. To the best of my knowledge, the work has not been submitted elsewhere for any other degree or diploma.
+This is to certify that the project report entitled **AeroNet: A Physics-Informed Neural Network Solver for Airfoil Aerodynamics**, submitted by {{field:students_names_enrol}} in partial fulfilment of the requirements for the award of the degree of {{field:degree_programme}} at Jaypee Institute of Information Technology, Noida, during the academic session {{field:academic_year}}, is a record of the work carried out by them under my supervision. To the best of my knowledge, the work has not been submitted elsewhere for any other degree or diploma.
 
 <br>
 
 Signature of the Supervisor: ______________________________
 
-Name of the Supervisor: [FILL IN: supervisor name and designation]
+Name of the Supervisor: {{field:supervisor_name_designation}}
 
 Date: [FILL IN: date]
 
@@ -35,13 +36,13 @@ Date: [FILL IN: date]
 
 Signature of the Head of the Department: ______________________________
 
-Name of the Head of the Department: [FILL IN: HOD name]
+Name of the Head of the Department: {{field:hod_name}}
 
 Date: [FILL IN: date]
 
 #* Declaration of Originality
 
-We hereby declare that this report entitled **AeroNet: A Physics-Informed Neural Network Solver for Airfoil Aerodynamics** is our own work, carried out under the guidance of [FILL IN: supervisor name]. Wherever the work of others has been used, it is acknowledged in the text and in the list of references. The report has not been submitted, in whole or in part, for any other degree or diploma.
+We hereby declare that this report entitled **AeroNet: A Physics-Informed Neural Network Solver for Airfoil Aerodynamics** is our own work, carried out under the guidance of {{field:supervisor_name}}. Wherever the work of others has been used, it is acknowledged in the text and in the list of references. The report has not been submitted, in whole or in part, for any other degree or diploma.
 
 The physics-informed solver at the centre of this project, NNfoil, was written by W. Cao, J. Song and W. Zhang [1]; it is vendored in the project repository, which therefore stays private because the upstream code carries no licence. The fixes, the experiments, the application and this report are ours. An AI coding assistant was used to help review code and draft text; every result in this report was checked against the files in the repository by the team. [FILL IN: confirm this wording with your supervisor and the institute's rules on AI assistance.]
 
@@ -49,17 +50,17 @@ The physics-informed solver at the centre of this project, NNfoil, was written b
 
 | Signature | Name of Student | Enrol. No. | Date |
 |---|---|---|---|
-| ____________ | [FILL IN: name, student A] | [FILL IN: enrolment number] | [FILL IN: date] |
-| ____________ | [FILL IN: name, student B] | [FILL IN: enrolment number] | [FILL IN: date] |
-| ____________ | [FILL IN: name, student C] | [FILL IN: enrolment number] | [FILL IN: date] |
+| ____________ | {{field:student_a_name}} | {{field:student_a_enrol}} | [FILL IN: date] |
+| ____________ | {{field:student_b_name}} | {{field:student_b_enrol}} | [FILL IN: date] |
+| ____________ | {{field:student_c_name}} | {{field:student_c_enrol}} | [FILL IN: date] |
 
 #* Acknowledgement
 
-We would like to express our sincere gratitude to our supervisor, [FILL IN: supervisor name], for the guidance, encouragement and critical questions that shaped this project from its first synopsis to this report. We thank the Head of the Department, [FILL IN: HOD name], and the faculty of [FILL IN: department name] for the environment and the facilities that made the work possible.
+We would like to express our sincere gratitude to our supervisor, {{field:supervisor_name}}, for the guidance, encouragement and critical questions that shaped this project from its first synopsis to this report. We thank the Head of the Department, {{field:hod_name}}, and the faculty of the {{field:department_line}} for the environment and the facilities that made the work possible.
 
 We are grateful to the authors of NNfoil, W. Cao, J. Song and W. Zhang, whose open-source solver and finite-volume reference data are the foundation of this study, and to the authors of NeuralFoil, PyTorch, NumPy, SciPy, Matplotlib, FastAPI and React, whose free software we used throughout. We also thank [FILL IN: friends, family, lab staff or anyone else the team wishes to thank].
 
-[FILL IN: names of the students, as on the cover page]
+{{field:students_names_enrol}}
 
 #* Abstract
 
@@ -159,7 +160,7 @@ Table: Timeline from the git history
 
 ### 1.4.3 Roles and responsibilities
 
-The roles of the team members are given in the annexure (Team Roles). [FILL IN: one sentence per student on who led which work package, to match the annexure table.]
+The roles of the team members are given in the annexure (Team Roles). {{field:roles_summary}} The study of the PINN method, the design of the experiments and the evaluation of the results were done by all three members together.
 
 ### 1.4.4 Challenges and risk management
 
@@ -791,9 +792,9 @@ Proof of outcome that only the team can supply:
 Table: Contribution of each team member
 | Student | Contribution |
 |---|---|
-| Student A: [FILL IN: name and enrolment number] | [FILL IN: what this student specifically contributed] |
-| Student B: [FILL IN: name and enrolment number] | [FILL IN: what this student specifically contributed] |
-| Student C: [FILL IN: name and enrolment number] | [FILL IN: what this student specifically contributed] |
+| {{field:student_a_name_enrol}} | {{field:student_a_contribution}} |
+| {{field:student_b_name_enrol}} | {{field:student_b_contribution}} |
+| {{field:student_c_name_enrol}} | {{field:student_c_contribution}} |
 
 ## E. Sustainability Statement
 

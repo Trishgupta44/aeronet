@@ -28,6 +28,7 @@ HERE = Path(__file__).resolve().parent
 if str(HERE) not in sys.path:
     sys.path.insert(0, str(HERE))
 
+import fields  # noqa: E402
 import numbers_fill  # noqa: E402
 
 FILL_IN = re.compile(r"\[FILL IN[^\]]*\]")
@@ -127,9 +128,15 @@ def _count(body: str) -> str:
     return str(len(_match(_read_csv(parts[0], ph), parts[1:], ph)))
 
 
+def apply_fields(text: str) -> str:
+    """``{{field:key}}`` from ``docs/deliverables_src/fields.json`` (see fields.py); an empty value stays a visible field."""
+    return fields.apply(text)
+
+
 def fill_text(text: str, rows=None) -> str:
-    """Fill every placeholder in ``text``. The first missing number raises ``KeyError`` naming it."""
+    """Fill every placeholder in ``text`` (fields first). The first missing number raises ``KeyError`` naming it."""
     rows = load_rows() if rows is None else rows
+    text = apply_fields(text)
     text = RATIO.sub(lambda m: _ratio(m.group(1), rows), text)
     text = SEC.sub(lambda m: _sec(m.group(1), rows), text)
     text = CSV.sub(lambda m: _csv(m.group(1)), text)
@@ -140,6 +147,7 @@ def fill_text(text: str, rows=None) -> str:
 def check_text(text: str, rows=None) -> list[str]:
     """Every missing-number message in ``text`` (empty list when all placeholders resolve)."""
     rows = load_rows() if rows is None else rows
+    text = apply_fields(text)
     errs = []
     for rx, fn in ((RATIO, lambda b: _ratio(b, rows)), (SEC, lambda b: _sec(b, rows)), (CSV, _csv), (COUNT, _count)):
         for m in rx.finditer(text):
@@ -153,4 +161,5 @@ def check_text(text: str, rows=None) -> list[str]:
 
 
 def fill_ins(text: str) -> list[str]:
-    return FILL_IN.findall(text)
+    """The ``[FILL IN: ...]`` fields still in ``text`` once ``{{field:key}}`` has been applied."""
+    return FILL_IN.findall(apply_fields(text))

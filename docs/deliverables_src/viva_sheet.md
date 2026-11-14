@@ -1,6 +1,6 @@
 # AeroNet: Viva Question and Answer Sheet
 Fifteen prepared questions with short answers and the file that backs each one
-Prepared for: [FILL IN: team member names and the panel or examiner]
+Prepared for: {{field:students_names}}; panel or examiner: [FILL IN: panel or examiner]
 Who answers which question: [FILL IN: question owners]
 
 ## How to use this sheet

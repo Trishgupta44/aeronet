@@ -1,9 +1,9 @@
 # AeroNet: A Physics-Informed Neural Network Solver for Airfoil Aerodynamics
 Project synopsis (final)
-Students: [FILL IN: student names and enrolment numbers]
-Supervisor: [FILL IN: supervisor name]
-Programme and semester: [FILL IN: programme, semester and year]
-Department and institute: [FILL IN: department and institute]
+Students: {{field:students_names_enrol}}
+Supervisor: {{field:supervisor_name}}
+Programme and semester: {{field:programme_semester_year}}
+Department and institute: {{field:department_institute}}
 Date: [FILL IN: date of submission]
 
 ## 1. Problem

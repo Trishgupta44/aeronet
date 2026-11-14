@@ -22,6 +22,7 @@ REPO = HERE.parent.parent
 sys.path.insert(0, str(HERE))
 
 import build_docx  # noqa: E402
+import fields as people_fields  # noqa: E402
 import numbers_fill  # noqa: E402
 
 SRC = REPO / "docs" / "deliverables_src"
@@ -104,7 +105,7 @@ def process(name, check_only, want_pdf):
     path = SRC / src
     if not path.exists():
         return None
-    text = path.read_text(encoding="utf8")
+    text = people_fields.apply(path.read_text(encoding="utf8"))
     rows = numbers_fill.load_rows()
     errs = numbers_fill.check(text, rows)
     fields = sorted(set(build_docx.FILL_IN.findall(text)))

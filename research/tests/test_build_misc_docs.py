@@ -16,6 +16,7 @@ sys.path.insert(0, str(REPO / "research" / "docs_build"))
 
 import build_misc_docs as bm  # noqa: E402
 import common_numbers as cn  # noqa: E402
+import fields as pf  # noqa: E402
 
 
 @pytest.fixture(scope="module")
@@ -81,9 +82,18 @@ def test_fill_ins_are_highlighted_and_nothing_is_invented(built):
     for name, (_, doc, md) in built.items():
         for f in cn.fill_ins(md):
             assert f in _text(doc), f"{name}: {f} not in the document"
-        # No student or supervisor name from the repository's earlier drafts has been copied in.
-        for banned in ("Awasthi", "Krishnna", "Riya", "9923103"):
-            assert banned not in _text(doc), f"{name}: contains {banned!r}"
+
+
+def test_people_details_come_only_from_fields_json(built):
+    """Every name, enrolment number and supervisor in a document is a value of fields.json (or a visible field)."""
+    base = pf.load_fields()
+    vals = pf.values()
+    allowed_enrol = {base[f"student_{x}_enrol"] for x in "abc" if base.get(f"student_{x}_enrol")}
+    for name, (_, doc, md) in built.items():
+        text = _text(doc)
+        assert set(re.findall(r"99231\d{5}", text)) <= allowed_enrol, name
+        for key in pf.used_keys(md):
+            assert pf.resolve(key, vals) in text, f"{name}: {key}"
 
 
 def test_viva_sheet_has_fifteen_questions_each_citing_evidence(built):
