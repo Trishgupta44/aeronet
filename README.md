@@ -73,7 +73,7 @@ conventions are in the roadmap, section 5.8. Timed runs need an idle, awake CPU.
 |---|---|---|
 | Frontend (Vitest) | `cd app/frontend && npm test` | 106 passed |
 | Backend (pytest) | `cd app/backend && python -m pytest -q` | 153 passed, 2 skipped (NeuralFoil is optional) |
-| Research (pytest) | `OMP_NUM_THREADS=1 research/.venv/Scripts/python -m pytest research/tests -q` | 188 passed (184 research tests plus 4 for the link checker) |
+| Research (pytest) | `OMP_NUM_THREADS=1 research/.venv/Scripts/python -m pytest research/tests -q` | 228 passed (experiments, metrics, exporters, document builders, link checker) |
 
 ## Key results
 

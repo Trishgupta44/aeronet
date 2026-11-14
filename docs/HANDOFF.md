@@ -6,7 +6,7 @@
 ## CURRENT STATE (updated 2026-11-14, after merging everything into `main`)
 
 **Everything is on `main` (local only, NOT pushed).** Tests: frontend 106, backend 153 (+2 skipped: NeuralFoil is optional),
-research 184. Nothing is running. Extra worktrees `../Aero-Net-planB` and `../Aero-Net-features` are no longer needed
+research 228. Nothing is running. Extra worktrees `../Aero-Net-planB` and `../Aero-Net-features` are no longer needed
 (`git worktree remove <path>`); the branches `plan-a-nnfoil-verified`, `plan-b-demo-v2`, `features-v3` and
 `plan-c-pinn-results` can be deleted when nobody needs them.
 
@@ -25,17 +25,30 @@ What exists:
 - **Docs:** `docs/AeroNet_v2_Design_Report.md` (design decisions), the roadmap and plans in
   `docs/superpowers/plans/`, milestone reports in `docs/milestones/`.
 
-## NEXT: Plan D (final package), `docs/superpowers/plans/2026-11-05-plan-D-final-package.md`
-- D1 README overhaul; **D2 the project report in the institute's capstone template** (the user supplied it in
-  `docs/DOCS NEEDED FOR MAJOR/`: 6 chapters, preliminary pages, annexures, A4, Times New Roman 12/14/16, 1.5 spacing,
-  2 cm margins, Roman then Arabic page numbers; the folder is untracked on purpose); D3 slides; D4 synopsis, progress
-  report, papers guide, viva sheet; D5 offline clean-copy test and backup-video script; D6 tag `v1.0`.
-- **Fields only the user can supply** (use `[FILL IN]`, never invent): student names and enrolment numbers, team
-  roles, supervisor and HOD names, course/semester/year, department line, institute logo image, department PO/PSO
-  list, Turnitin plagiarism report, proof of outcome (paper, abstract, patent).
-- Optional extras not done: train a PINN on a drawn shape (C10), ablations that might fix the drift (C11: robust
-  loop, periodic input, hard far field, panel-method prior), 400x200 PINN run, random-airfoil runs (conditions are in
-  `docs/verification.md`).
+## DONE: Plan D (final package) and the clean-copy test (2026-11-14)
+- Built and committed: README overhaul and `docs/demo_script.md`; the project report in the institute's capstone template
+  (`deliverables/2_Project_Report_AeroNet.docx`, 54 pages, PDF in `deliverables/pdf/`); the 17-slide deck with speaker notes
+  (`deliverables/3_Panel_Presentation.pptx`); progress report, synopsis, related-papers guide and viva sheet in `deliverables/`.
+  Sources live in `docs/deliverables_src/`; rebuild with `research/.venv/Scripts/python research/docs_build/build_all.py`,
+  `build_pptx.py` and `build_misc_docs.py` (each has `--check`: 0 missing numbers). People-specific details come from
+  `docs/deliverables_src/fields.json` (filled from the team's own documents in `docs/DOCS NEEDED FOR MAJOR/`; that folder is
+  untracked on purpose).
+- Clean-copy test: a fresh `git clone` installs and builds the frontend in 9 s, passes 153 backend and 106 frontend tests, and the
+  app serves every endpoint (14 PINN cases, results, showdown, trade-off) with `NNfoil/` and `results/runs/` deleted. The solver
+  `POST /api/solve` with `solver=pinn` returns 409 by design.
+- Final test counts: research 228, backend 153 (+2 skipped: NeuralFoil is optional), frontend 106. Link check: 0 broken links.
+
+## STILL OPEN (only the user can do these; see `docs/deliverables_src/FILL_IN_CHECKLIST.md`)
+- HOD name, dates, institute logo image (`docs/deliverables_src/jiit_logo.png`), PSO list, Turnitin summary, proof of outcome,
+  supervisor remarks and signatures, thank-you names, optional laptop price. Read every reference before submission (they were
+  checked by metadata, not read in full). Confirm the team-role wording and the degree wording taken from the team's documents.
+- Update the Word contents field (right-click, Update field) after the last edit, then print the report; binding is navy blue with
+  gold embossing, no spiral (template).
+- Decide whether to push to GitHub (keep the repository private: NNfoil has no licence) and which version of the report and slides
+  to submit (the team's own `AeroNet_Major_Project_*` files or these).
+- Optional extras not done: train a PINN on a drawn shape (C10), ablations that might fix the drift (C11), a 400x200 PINN run,
+  random-airfoil runs, a recorded backup video of the demo. The `features-v3` branch has extra deployment work (public mode without
+  NNfoil's data) that is not merged.
 
 ## Design direction (user request, 2026-11-07)
 - The user wants the frontend to look like an aerospace corporate site in the style of embraer.com/en (they are
