@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef } from 'react';
-import { useCanvasDraw } from '../hooks/useCanvasDraw.js';
+import { cssVar, useCanvasDraw } from '../hooks/useCanvasDraw.js';
+import { canvasPalette } from '../theme/canvasPalette.js';
+import { currentTheme } from '../theme/theme.js';
 import { useDrawPointer, WINDOW } from '../hooks/useDrawPointer.js';
 import { FlowCard } from './ControlCards.jsx';
 
@@ -9,12 +11,14 @@ const ASPECT = 1.8;
 
 function drawPen(g, w, h, stroke, { mirror, hint }) {
   g.clearRect(0, 0, w, h);
+  const T = canvasPalette(currentTheme());
+  const pen = (a) => `rgba(${T.pen.join(',')},${a})`;
   const X = (x) => ((x - WINDOW.xmin) / (WINDOW.xmax - WINDOW.xmin)) * w;
   const Y = (y) => ((WINDOW.ymax - y) / (WINDOW.ymax - WINDOW.ymin)) * h;
   if (mirror) {
     g.save();
     g.setLineDash([6, 5]);
-    g.strokeStyle = 'rgba(26,15,158,.7)';
+    g.strokeStyle = pen(0.7);
     g.lineWidth = 1.2;
     g.beginPath();
     g.moveTo(0, Y(0));
@@ -22,14 +26,14 @@ function drawPen(g, w, h, stroke, { mirror, hint }) {
     g.stroke();
     g.setLineDash([]);
     g.font = '500 11px "IBM Plex Mono", monospace';
-    g.fillStyle = 'rgba(26,15,158,.85)';
+    g.fillStyle = pen(0.85);
     g.fillText('MIRROR LINE: DRAW ABOVE', 10, Y(0) - 7);
     g.restore();
   }
   if (!stroke && hint) {
     g.font = '500 12px "IBM Plex Mono", monospace';
     g.textAlign = 'center';
-    g.fillStyle = '#566070';
+    g.fillStyle = cssVar('--muted');
     g.fillText(hint, w / 2, h / 2);
     g.textAlign = 'start';
   }
@@ -41,24 +45,24 @@ function drawPen(g, w, h, stroke, { mirror, hint }) {
   g.lineCap = 'round';
   g.lineJoin = 'round';
   if (mirror) {
-    g.strokeStyle = 'rgba(26,15,158,.35)';
+    g.strokeStyle = pen(0.35);
     g.lineWidth = 2;
     trace(stroke.map((q) => [q[0], -Math.max(0, q[1])]));
     g.stroke();
   }
   const shown = mirror ? stroke.map((q) => [q[0], Math.max(0, q[1])]) : stroke;
-  g.strokeStyle = 'rgba(255,255,255,.9)';
+  g.strokeStyle = T.penHalo;
   g.lineWidth = 5;
   trace(shown);
   g.stroke();
-  g.strokeStyle = '#1a0f9e';
+  g.strokeStyle = pen(1);
   g.lineWidth = 2.4;
   trace(shown);
   g.stroke();
   if (!mirror) {
     // the outline will be closed back to the start: show that as a faint dashed line
     g.setLineDash([3, 5]);
-    g.strokeStyle = 'rgba(26,15,158,.5)';
+    g.strokeStyle = pen(0.5);
     g.lineWidth = 1.5;
     g.beginPath();
     g.moveTo(X(stroke[stroke.length - 1][0]), Y(stroke[stroke.length - 1][1]));

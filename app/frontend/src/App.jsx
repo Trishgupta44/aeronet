@@ -19,6 +19,7 @@ import { DrawThumb, ExploreThumb, LabThumb, ResultsThumb } from './components/Th
 import { HEADLINE } from './data/headline.js';
 import { useSolve } from './hooks/useSolve.js';
 import { checkNacaCode } from './utils/naca.js';
+import { NAV_TITLES, pageFromHash } from './utils/route.js';
 import { readState, writeState } from './utils/urlState.js';
 
 // Shown until (or if) the backend answers, so the layout never jumps.
@@ -33,7 +34,7 @@ const FALLBACK_PRESETS = [
 ];
 
 const params = new URLSearchParams(window.location.search);
-if (params.has('light')) document.documentElement.dataset.theme = 'light'; // ?light forces the light theme (printed figures)
+// ?theme=light|dark (or the older ?light) forces a theme for one visit: handled in theme/theme.js
 const PRESENT = params.has('present'); // ?present: kiosk mode that cycles through the demo cases
 if (PRESENT) document.documentElement.classList.add('present');
 const START = readState(window.location.search);
@@ -62,7 +63,9 @@ export default function App() {
   const [layers, setLayers] = useState(DEFAULT_LAYERS);
   const [drawLayers, setDrawLayers] = useState(DEFAULT_LAYERS);
   const [paused, setPaused] = useState(prefersReducedMotion);
-  const [tab, setTab] = useState(START.tab); // the section whose state the page address follows
+  // The page (tab) on show: home, explore, draw, pinn or results. The #hash of the address says which; links are plain #hash links.
+  const [page, setPage] = useState(() => (PRESENT ? START.tab : pageFromHash(window.location.hash) ?? (params.has('tab') ? START.tab : 'home')));
+  const [tab, setTab] = useState(START.tab); // the section whose state the page address follows (explore or draw)
   const [drawState, setDrawState] = useState(null);
   const [drawRequest, setDrawRequest] = useState(null);
 
@@ -85,8 +88,30 @@ export default function App() {
     if (check.valid) setCode(v);
   };
 
-  // the page address follows the section the reader last used (freehand outlines are not stored)
+  // follow the #hash: a link to a page shows that page from its top; other hashes (#credit) are ordinary anchors
   useEffect(() => {
+    const onHash = () => {
+      const p = pageFromHash(window.location.hash);
+      if (!p) return;
+      setPage(p);
+      window.scrollTo(0, 0);
+    };
+    // popstate too: after replaceState has rewritten the query string, Back to an older entry is not always reported as a hashchange
+    window.addEventListener('hashchange', onHash);
+    window.addEventListener('popstate', onHash);
+    return () => {
+      window.removeEventListener('hashchange', onHash);
+      window.removeEventListener('popstate', onHash);
+    };
+  }, []);
+  useEffect(() => {
+    if (page === 'explore' || page === 'draw') setTab(page);
+    document.title = page === 'home' ? 'AeroNet: airflow explorer' : `${NAV_TITLES[page]} · AeroNet`;
+  }, [page]);
+
+  // the page address follows the section the reader last used (freehand outlines are not stored); only the tool pages carry state
+  useEffect(() => {
+    if (page !== 'explore' && page !== 'draw') return;
     const s =
       tab === 'draw' && drawState
         ? { tab, code, alpha: drawState.alpha, mach: drawState.mach, shape: drawState.shape, lifting: drawState.lifting, ground: drawState.ground }
@@ -94,11 +119,7 @@ export default function App() {
     const { pathname, search, hash } = window.location;
     const next = pathname + writeState(search, s) + hash;
     if (next !== pathname + search + hash) window.history.replaceState(null, '', next);
-  }, [tab, code, alpha, mach, drawState]);
-
-  useEffect(() => {
-    if (START.tab === 'draw' && !window.location.hash && !PRESENT) setTimeout(() => document.getElementById('draw')?.scrollIntoView(), 400);
-  }, []);
+  }, [page, tab, code, alpha, mach, drawState]);
 
   // ?present: cycle through the demo cases until the first user input
   useEffect(() => {
@@ -112,6 +133,7 @@ export default function App() {
     const apply = (i) => {
       const c = PRESENT_CYCLE[i];
       setTab(c.tab);
+      setPage(c.tab);
       if (c.tab === 'explore') {
         setCustom('');
         setCode(c.code);
@@ -182,18 +204,21 @@ export default function App() {
   return (
     <>
       <BackendBanner />
-      <SiteHeader />
-      <Hero caption={result ? `Live: panel-method flow around NACA ${result.code} at ${result.alpha}°, the case selected below` : undefined}>
-        {result && (
-          <div className="hero-flow">
-            <FlowStage result={result} layers={HERO_LAYERS} paused={paused} hero />
-          </div>
-        )}
-      </Hero>
+      <SiteHeader page={page} />
+      {page === 'home' && (
+        <Hero caption={result ? `Live: panel-method flow around NACA ${result.code} at ${result.alpha}°, the case selected in Explore` : undefined}>
+          {result && (
+            <div className="hero-flow">
+              <FlowStage result={result} layers={HERO_LAYERS} paused={paused} hero />
+            </div>
+          )}
+        </Hero>
+      )}
       <main>
         <Section
           id="about"
           cls="hide-present"
+          hidden={page !== 'home'}
           band
           eyebrow="An airfoil flow explorer"
           title="We are AeroNet"
@@ -216,7 +241,7 @@ export default function App() {
             </div>
             <div className="bignum">
               <div className="n">{result ? `${result.solve_ms.toFixed(1)} ms` : '–'}</div>
-              <p className="l">solve time of the panel method for the case shown below, on this machine</p>
+              <p className="l">solve time of the panel method for the case selected in Explore, on this machine</p>
               <span className="tag tag--measured">measured now</span>
               <span className="src">timed inside the backend for every request</span>
             </div>
@@ -229,7 +254,7 @@ export default function App() {
           </div>
         </Section>
 
-        <Section id="explore" eyebrow="Airfoil flow explorer" title="Explore" hidden={PRESENT && tab !== 'explore'}>
+        <Section id="explore" eyebrow="Airfoil flow explorer" title="Explore" hidden={page !== 'explore'}>
           <details className="real hide-present">
             <summary>What is real here</summary>
             <ul>
@@ -264,24 +289,24 @@ export default function App() {
           </div>
         </Section>
 
-        <Section id="draw" band eyebrow="Any closed shape" title="Draw" hidden={PRESENT && tab !== 'draw'}>
+        <Section id="draw" band eyebrow="Any closed shape" title="Draw" hidden={page !== 'draw'}>
           <DrawSection layers={drawLayers} onLayersChange={setDrawLayers} paused={paused} onPausedChange={setPaused}
             initial={START.tab === 'draw' ? START : { shape: START.shape, lifting: START.lifting, ground: START.ground }}
             request={drawRequest} onState={setDrawState} onActivate={() => setTab('draw')} />
         </Section>
 
-        <Section id="pinn" cls="hide-present" eyebrow="Neural solver" title="PINN Lab">
+        <Section id="pinn" cls="hide-present" hidden={page !== 'pinn'} eyebrow="Neural solver" title="PINN Lab">
           <div className="results-stack">
             <ShowdownCard />
             <TrainingCard />
           </div>
         </Section>
 
-        <Section id="overview" cls="hide-present" band eyebrow="Four ways in" title="What you can do">
+        <Section id="overview" cls="hide-present" hidden={page !== 'home'} band eyebrow="Four ways in" title="What you can do">
           <CardGrid items={cards} />
         </Section>
 
-        <Section id="results" cls="hide-present" eyebrow="Evidence" title="Results">
+        <Section id="results" cls="hide-present" hidden={page !== 'results'} eyebrow="Evidence" title="Results">
           <div className="results-stack">
             <TradeoffCard />
             <ComparisonCard result={result} />

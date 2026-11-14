@@ -5,7 +5,7 @@ export default function SiteFooter() {
     <footer className="site-footer" id="credit">
       <div className="container footer-in">
         <div>
-          <a className="brand" href="#top"><Glyph /> <span>AeroNet</span></a>
+          <a className="brand" href="#home"><Glyph /> <span>AeroNet</span></a>
           <p className="footer-lead">An airfoil flow explorer for screening, not a certification tool.</p>
         </div>
         <div className="footer-notes">

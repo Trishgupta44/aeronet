@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { cssVar, useCanvasDraw } from '../hooks/useCanvasDraw.js';
-import { cmap, gradientCss } from '../utils/colormap.js';
+import { canvasPalette } from '../theme/canvasPalette.js';
+import { currentTheme } from '../theme/theme.js';
+import { useTheme } from '../theme/useTheme.js';
+import { cmap, gradientCss, stopsFor } from '../utils/colormap.js';
 import { ISO_LEVELS, isoLines } from '../utils/contours.js';
 import { sampleField, sampleVelocity } from '../utils/field.js';
 import { createParticles, mulberry32, stepParticles } from '../utils/particles.js';
@@ -14,7 +17,7 @@ const offscreen = typeof document !== 'undefined' ? document.createElement('canv
 
 export const prefersReducedMotion = () => typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
 
-function arrow(g, x0, y0, x1, y1, color, halo = true) {
+function arrow(g, x0, y0, x1, y1, color, halo = true, haloColor = 'rgba(255,255,255,.85)') {
   const len = Math.hypot(x1 - x0, y1 - y0);
   if (len < 2) return;
   const a = Math.atan2(y1 - y0, x1 - x0);
@@ -33,7 +36,7 @@ function arrow(g, x0, y0, x1, y1, color, halo = true) {
   };
   g.lineCap = 'round';
   if (halo) {
-    g.strokeStyle = 'rgba(255,255,255,.85)';
+    g.strokeStyle = haloColor;
     g.lineWidth = 3.6;
     path();
     g.stroke();
@@ -60,9 +63,12 @@ function signedArea(xs, ys) {
 }
 
 function drawBase(g, w, h, result, layers, hero, ghost) {
+  const theme = currentTheme();
+  const T = canvasPalette(theme);
+  const stops = stopsFor(theme);
   if (hero) g.clearRect(0, 0, w, h);
   else {
-    g.fillStyle = layers.field ? '#f7f7f4' : cssVar('--plot-bg');
+    g.fillStyle = layers.field ? T.stage : cssVar('--plot-bg');
     g.fillRect(0, 0, w, h);
   }
   const f = result?.field;
@@ -86,7 +92,7 @@ function drawBase(g, w, h, result, layers, hero, ghost) {
         if (!nb.length) continue;
         v = nb.reduce((a, b) => a + b, 0) / nb.length;
       }
-      const c = cmap(v);
+      const c = cmap(v, stops);
       img.data[k * 4] = c[0];
       img.data[k * 4 + 1] = c[1];
       img.data[k * 4 + 2] = c[2];
@@ -99,7 +105,7 @@ function drawBase(g, w, h, result, layers, hero, ghost) {
   }
 
   if (layers.isobars) {
-    g.strokeStyle = layers.field ? 'rgba(0,0,0,.28)' : cssVar('--muted');
+    g.strokeStyle = layers.field ? T.isobar : cssVar('--muted');
     g.lineWidth = 0.8;
     g.lineCap = 'butt';
     for (const level of ISO_LEVELS) {
@@ -119,9 +125,9 @@ function drawBase(g, w, h, result, layers, hero, ghost) {
     g.beginPath();
     g.rect(0, y0, w, h - y0);
     g.clip();
-    g.fillStyle = hero ? 'rgba(10,26,92,.9)' : '#d6d7d3';
+    g.fillStyle = hero ? 'rgba(10,26,92,.9)' : T.roadFill;
     g.fillRect(0, y0, w, h - y0);
-    g.strokeStyle = 'rgba(60,66,78,.55)';
+    g.strokeStyle = T.roadHatch;
     g.lineWidth = 1;
     g.beginPath();
     for (let x = -h; x < w + h; x += 10) {
@@ -130,7 +136,7 @@ function drawBase(g, w, h, result, layers, hero, ghost) {
     }
     g.stroke();
     g.restore();
-    g.strokeStyle = '#20242c';
+    g.strokeStyle = T.roadLine;
     g.lineWidth = 2;
     g.beginPath();
     g.moveTo(0, y0);
@@ -138,7 +144,7 @@ function drawBase(g, w, h, result, layers, hero, ghost) {
     g.stroke();
     if (!hero) {
       g.font = '500 11px "IBM Plex Mono", monospace';
-      g.fillStyle = '#3c424e';
+      g.fillStyle = T.roadLabel;
       g.fillText('ROAD', 10, Math.min(h - 6, y0 + 16));
     }
   }
@@ -146,9 +152,9 @@ function drawBase(g, w, h, result, layers, hero, ghost) {
   g.beginPath();
   result.x.forEach((x, i) => (i ? g.lineTo(px(x), py(result.y[i])) : g.moveTo(px(x), py(result.y[i]))));
   g.closePath();
-  g.fillStyle = '#20242c';
+  g.fillStyle = T.bodyFill;
   g.fill();
-  g.strokeStyle = hero ? 'rgba(255,255,255,.35)' : '#0c0e12';
+  g.strokeStyle = hero ? (theme === 'dark' ? 'rgba(214,224,247,.6)' : 'rgba(255,255,255,.35)') : T.bodyStroke;
   g.lineWidth = 1.2;
   g.stroke();
 
@@ -158,7 +164,7 @@ function drawBase(g, w, h, result, layers, hero, ghost) {
     // the pinned shape as a dashed outline, so a change of shape or angle can be compared at a glance
     g.save();
     g.setLineDash([6, 4]);
-    g.strokeStyle = '#0b1020';
+    g.strokeStyle = T.ink;
     g.lineWidth = 1.4;
     g.beginPath();
     ghost.x.forEach((x, i) => (i ? g.lineTo(px(x), py(ghost.y[i])) : g.moveTo(px(x), py(ghost.y[i]))));
@@ -183,14 +189,14 @@ function drawBase(g, w, h, result, layers, hero, ghost) {
       const nx = ccw ? ty : -ty; // outward normal
       const ny = ccw ? -tx : tx;
       const L = -s.cp[i] * 0.06; // suction points outward, pressure inward
-      arrow(g, px(s.cx[i]), py(s.cy[i]), px(s.cx[i] + nx * L), py(s.cy[i] + ny * L), s.upper[i] ? up : lo);
+      arrow(g, px(s.cx[i]), py(s.cy[i]), px(s.cx[i] + nx * L), py(s.cy[i] + ny * L), s.upper[i] ? up : lo, true, T.halo);
     }
     const a = (result.alpha * Math.PI) / 180;
     const Ll = 0.15 * result.cl;
     const lx = 0.25; // base of the lift arrow: the quarter-chord point
-    arrow(g, px(lx), py(0), px(lx - Math.sin(a) * Ll), py(Math.cos(a) * Ll), '#0b1020');
+    arrow(g, px(lx), py(0), px(lx - Math.sin(a) * Ll), py(Math.cos(a) * Ll), T.ink, true, T.halo);
     g.font = '600 12px "IBM Plex Mono", monospace';
-    g.fillStyle = '#0b1020';
+    g.fillStyle = T.ink;
     g.fillText('LIFT', px(lx - Math.sin(a) * Ll) + 6, py(Math.cos(a) * Ll) + (Ll >= 0 ? -4 : 12));
   }
 
@@ -199,9 +205,9 @@ function drawBase(g, w, h, result, layers, hero, ghost) {
   const ax = 34;
   const ay = h / 2;
   const L = 44;
-  arrow(g, ax, ay, ax + L * Math.cos(a), ay - L * Math.sin(a), '#20242c', false);
+  arrow(g, ax, ay, ax + L * Math.cos(a), ay - L * Math.sin(a), T.flow, false);
   g.font = '500 11px "IBM Plex Mono", monospace';
-  g.fillStyle = '#20242c';
+  g.fillStyle = T.flow;
   if (w >= 500) g.fillText('FREESTREAM', ax - 8, ay + 30); // no room for the word on a phone
 }
 
@@ -225,7 +231,7 @@ const trailStyle = (palette, bin) => {
 /** Is the picture behind the particles dark? (the hero, or the plain plot background in dark mode) */
 function darkBackdrop(hero, fieldOn) {
   if (hero) return true;
-  if (fieldOn) return false;
+  if (fieldOn) return currentTheme() === 'dark';
   const m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(cssVar('--plot-bg'));
   return !!m && (0.299 * parseInt(m[1], 16) + 0.587 * parseInt(m[2], 16) + 0.114 * parseInt(m[3], 16)) < 110;
 }
@@ -269,6 +275,7 @@ export function FlowStage({ result, layers, paused, hero = false, onProbe, idp =
   const randRef = useRef(mulberry32(2024));
   const field = result?.field ?? null;
   fieldRef.current = field;
+  const { resolved: theme } = useTheme(); // the particle colours depend on it; the base canvas redraws through useCanvasDraw
 
   const [size, setSize] = useState({ w: 0, h: 0 });
   const getHeight = (w) => Math.round(w / ASPECT);
@@ -363,7 +370,7 @@ export function FlowStage({ result, layers, paused, hero = false, onProbe, idp =
       cancelAnimationFrame(raf);
       io?.disconnect();
     };
-  }, [size, hasField, layers.particles, layers.field, paused, hero]);
+  }, [size, hasField, layers.particles, layers.field, paused, hero, theme]);
 
   const handle = (e) => {
     if (!onProbe) return;
@@ -392,6 +399,7 @@ export function FlowStage({ result, layers, paused, hero = false, onProbe, idp =
 export default function FlowCanvas({ result, layers, onLayersChange, paused, onPausedChange, idp = '', children, footer, ghost = null, stageRef = null }) {
   const [probe, setProbe] = useState(null);
   const [fps, setFps] = useState(null);
+  const { resolved: theme } = useTheme();
 
   useEffect(() => {
     const id = setInterval(() => setFps(paused || !window.__aeronetFps ? null : Math.round(window.__aeronetFps)), 500);
@@ -434,7 +442,7 @@ export default function FlowCanvas({ result, layers, onLayersChange, paused, onP
       </div>
       <div className="cbar">
         <span>−2 suction</span>
-        <div className="bar" id={`${idp}bar`} style={{ background: gradientCss() }} />
+        <div className="bar" id={`${idp}bar`} style={{ background: gradientCss(stopsFor(theme)) }} />
         <span>+1 stagnation</span>
       </div>
       <div className="hint">Idealized potential flow (inviscid, no separation or wake). Isobars: Cp from −1.5 to 0.75, dashed where suction.</div>
