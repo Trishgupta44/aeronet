@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 
 from aeronet import neural, tradeoff
 from aeronet.main import app
+from conftest import csv_rows, write_results
 
 HEADER = "experiment,case,method,mesh,mach,alpha_deg,rms_cp,max_cp,cl,cl_ref,cd,train_s,infer_ms,source,notes\n"
 
@@ -14,10 +15,8 @@ def _row(exp, method, mesh, rms, train, notes=""):
 
 
 @pytest.fixture
-def summary(tmp_path, monkeypatch):
-    res = tmp_path / "results"
-    res.mkdir()
-    (res / "summary.csv").write_text(
+def summary(pinn_dir, monkeypatch):
+    write_results(pinn_dir, csv_rows(
         HEADER
         + _row("B0", "fvm", "50x25", 0.108, "")
         + _row("B0", "fvm", "100x50", 0.046, "")
@@ -26,10 +25,9 @@ def summary(tmp_path, monkeypatch):
         + _row("E2", "pinn", "100x50", 0.0145, 600.0, "rounds=20/20")
         + _row("E2", "pinn_gs", "100x50", 0.0162, 120.0, "rounds=4/4; init_from=naca0012_50x25_a4_m04")
         + _row("E2", "pinn_gs_nopos", "200x100", 0.0092, "", "init_from=naca0012_100x50_a4_m04_gs_nopos; train_s withheld: the laptop slept")
-    )
-    monkeypatch.setenv("AERONET_RESULTS_DIR", str(res))
+    ))
     monkeypatch.setattr(tradeoff, "measure_panel_seconds", lambda: 0.0012)
-    return res
+    return pinn_dir
 
 
 def test_errors_and_times_are_the_summary_values(summary):
@@ -61,9 +59,9 @@ def test_neuralfoil_has_no_point_only_a_time(summary):
         assert nf["call_ms"] > 0 and "not a pressure distribution" in nf["note"]
 
 
-def test_endpoint_and_missing_data(summary, tmp_path, monkeypatch):
+def test_endpoint_and_missing_data(summary):
     assert TestClient(app).get("/api/tradeoff").status_code == 200
-    monkeypatch.setenv("AERONET_RESULTS_DIR", str(tmp_path / "none"))
+    (summary / "results_summary.json").unlink()
     r = TestClient(app).get("/api/tradeoff")
     assert r.status_code == 200 and r.json()["points"] == [] and r.json()["panel"] is None
 

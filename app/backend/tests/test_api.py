@@ -13,7 +13,7 @@ def test_health():
 def test_solvers_and_presets():
     solvers = {s["id"]: s for s in client.get("/api/solvers").json()}
     assert solvers["panel"]["available"] is True
-    assert solvers["pinn"]["available"] is False and "checkpoint" in solvers["pinn"]["note"]
+    assert "pinn" in solvers and solvers["pinn"]["note"]  # availability depends on the exported data (see test_pinn_api.py)
     assert [p["code"] for p in client.get("/api/airfoils").json()] == ["0012", "2412", "4412"]
 
 

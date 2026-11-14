@@ -11,9 +11,10 @@ from time import perf_counter
 import numpy as np
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import __version__, compressibility, neural, optimize, pinn_data, tradeoff
+from . import __version__, compressibility, neural, optimize, pinn_cases, pinn_data, tradeoff
 from .compare import compare_cp, compare_cp_nearest, parse_reference, thin_airfoil_cl
 from .field import field_grid
 from .geometry import naca4
@@ -41,7 +42,7 @@ from .schemas import (
     ViscousRequest,
     ViscousResponse,
 )
-from .solvers import PRESETS, SOLVERS, get_solver
+from .solvers import PRESETS, get_solver, solver_infos
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent
 DATA_DIR = BACKEND_DIR / "data"
@@ -91,7 +92,7 @@ def health() -> dict:
 
 @app.get("/api/solvers", response_model=list[SolverInfo])
 def list_solvers() -> list[SolverInfo]:
-    return [s.info for s in SOLVERS.values()]
+    return solver_infos()
 
 
 @app.get("/api/airfoils", response_model=list[AirfoilPreset])
@@ -199,6 +200,28 @@ def get_showdown() -> dict:
         return pinn_data.showdown()
     except (OSError, KeyError, ValueError) as e:
         raise HTTPException(status_code=503, detail=f"PINN results are not available here: {e}")
+
+
+@app.get("/api/pinn/cases")
+def list_pinn_cases() -> list[dict]:
+    """The trained PINN cases (one network per flow condition): id, label, shape, mesh, Mach, angle, Cp RMS, Cl, collapsed flag, source."""
+    return pinn_cases.list_cases()
+
+
+@app.get("/api/pinn/cases/{case_id}")
+def get_pinn_case(case_id: str) -> FileResponse:
+    """One case (roadmap 5.7): surface Cp, reference, panel solution, metrics, timing, log, per-round snapshots and the flow field."""
+    try:
+        path = pinn_cases.case_path(case_id)  # checked against the files that exist: no path can be reached from the id
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=str(e).strip("'\""))
+    return FileResponse(path, media_type="application/json")
+
+
+@app.get("/api/results")
+def get_results() -> list[dict]:
+    """The rows of results/summary.csv as exported (every number measured, quoted or fitted: see each row's ``source``)."""
+    return pinn_cases.load_results()
 
 
 @app.get("/api/shapes", response_model=list[ShapePreset])

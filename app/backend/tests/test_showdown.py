@@ -1,50 +1,38 @@
-"""Same-mesh showdown loader: numbers must be the ones in results/summary.csv, final round only, pending shown as pending."""
+"""Same-mesh showdown: numbers must be the ones in the exported results (= results/summary.csv), final round only, pending shown
+as pending. The showdown reads only through aeronet.pinn_cases (exported case JSON, results rows, seed runs): no results/ or NNfoil/."""
 
 import csv
-import json
 
-import numpy as np
 import pytest
 from fastapi.testclient import TestClient
 
-from aeronet import pinn_data
+from aeronet import pinn_cases, pinn_data
 from aeronet.main import app
+from conftest import SUMMARY_HEADER, csv_rows, make_case, write_case, write_results, write_seed_runs
 
-HEADER = "experiment,case,method,mesh,mach,alpha_deg,rms_cp,max_cp,cl,cl_ref,cd,train_s,infer_ms,source,notes\n"
-FVM_HEADER = "nodenumber x-coordinate y-coordinate pressure-coefficient\n"
-
-
-def _fvm_file(path, scale):
-    ang = np.linspace(0.1, 2 * np.pi - 0.1, 24)
-    x, y = 0.5 * np.cos(ang), 0.06 * np.sin(ang)
-    rows = [f"{i + 1} {x[i]:.6e} {y[i]:.6e} {scale * (1 - 4 * x[i] ** 2):.6e}" for i in range(24)]
-    path.write_text(FVM_HEADER + "\n".join(rows) + "\n")
+FVM_PTS = [[0.1, 0.05, 0.3], [0.5, 0.06, -0.2], [0.9, 0.01, 0.1], [0.5, -0.06, -0.1]]  # (x_app, y, Cp): upper and lower wall
 
 
 @pytest.fixture
-def fake(tmp_path, monkeypatch):
-    res, fvm = tmp_path / "results", tmp_path / "fvm"
-    (res / "runs").mkdir(parents=True)
-    fvm.mkdir()
-    for name in ("50_25", "100_50", "200_100", "800_400"):
-        _fvm_file(fvm / f"NACA0012_{name}_Cp.dat", 1.0)
-    (res / "summary.csv").write_text(
-        HEADER
+def fake(pinn_dir):
+    write_results(pinn_dir, csv_rows(
+        SUMMARY_HEADER
         + "B0,NACA0012_a4,fvm,100x50,0.4,4,0.045985,0.260987,0.480267,0.519329,0.01,,,measured,ref\n"
         + "E2,NACA0012_a4,pinn,100x50,0.4,4,0.014451,0.082595,0.516286,0.519329,0.0006,577.6,,measured,final round; rounds=20; failed_rounds=0\n"
+    ))
+    x = [0.05 + 0.1 * i for i in range(10)]
+    done = make_case(
+        "naca0012_100x50_a4_m04",
+        surface={"x": x, "y": [0.03] * 5 + [-0.03] * 5, "cp": [0.1] * 10},  # the FINAL round
+        snapshots=[{"round": 1, "cp": [9.0] * 10}, {"round": 2, "cp": [0.1] * 10}],
+        reference={"name": "FVM 800×400", "points": FVM_PTS},
+        fvm_same_mesh={"name": "FVM 100×50", "points": FVM_PTS, "rms": 0.046, "max": 0.26, "cl": 0.48},
     )
-    done = res / "runs" / "naca0012_100x50_a4_m04"
-    done.mkdir()
-    x = np.linspace(0.05, 0.95, 10).tolist()
-    y = [0.03] * 5 + [-0.03] * 5
-    (done / "snapshots.json").write_text(json.dumps({"x": x, "y": y, "rounds": [{"round": 1, "cp": [9.0] * 10}, {"round": 2, "cp": [0.1] * 10}]}))
-    pend = res / "runs" / "naca0012_200x100_a4_m04_gs_nopos"
-    pend.mkdir()
-    (pend / "log.json").write_text(json.dumps({"round": [1, 2, 3]}))
-    (pend / "config.json").write_text(json.dumps({"rounds": 30}))
-    monkeypatch.setenv("AERONET_RESULTS_DIR", str(res))
-    monkeypatch.setenv("AERONET_FVM_DIR", str(fvm))
-    return res
+    pend = make_case("naca0012_200x100_a4_m04_gs_nopos", mesh="200x100", config={"rounds": 30, "rounds_done": 3},
+                     log={"round": [1, 2, 3], "time_s": [1.0, 2.0, 3.0]}, fvm_same_mesh=None)
+    write_case(pinn_dir, done)
+    write_case(pinn_dir, pend)
+    return pinn_dir
 
 
 def test_numbers_come_from_the_summary_and_the_final_round(fake):
@@ -58,26 +46,29 @@ def test_numbers_come_from_the_summary_and_the_final_round(fake):
     assert sum(p["curve"]["upper"]) == 5
 
 
-def test_seed_spread_comes_from_seed_check_and_collapsed_seeds_count_but_give_no_range(fake):
-    head = "mode,method,seed,run_id,cl_after_transfer,final_cl,cp_rms,rounds,failed_rounds,seconds,collapsed,complete\n"
-    (fake / "seed_check.csv").write_text(
-        head
-        + "pos,cold,0,naca0012_100x50_a4_m04,,0.516286,0.014451,20,0,577.6,no,yes\n"
-        + "pos,cold,1,naca0012_100x50_a4_m04_s1,,0.506552,0.015379,5,0,324.6,no,yes\n"
-        + "pos,cold,2,naca0012_100x50_a4_m04_s2,,,,0,5,,yes,yes\n"
-        + "pos,gs,0,some_other_run,0.4,0.5,0.0161,4,0,120.0,no,yes\n"  # other variant: must not leak into the pinn spread
-    )
-    s1 = fake / "runs" / "naca0012_100x50_a4_m04_s1"
-    s1.mkdir()
-    x = np.linspace(0.05, 0.95, 10).tolist()
-    (s1 / "snapshots.json").write_text(json.dumps({"x": x, "y": [0.03] * 5 + [-0.03] * 5, "rounds": [{"round": 5, "cp": [0.3] * 10}]}))
+def test_seed_spread_comes_from_the_seed_runs_and_collapsed_seeds_count_but_give_no_range(fake):
+    x = [0.05 + 0.1 * i for i in range(10)]
+    y = [0.03] * 5 + [-0.03] * 5
+
+    def run(seed, run_id, rms, cl, rounds, failed, collapsed, cp):
+        return {"seed": seed, "run_id": run_id, "rms": rms, "cl": cl, "rounds": rounds, "failed_rounds": failed, "collapsed": collapsed,
+                "curve": None if cp is None else {"x": x, "y": y, "cp": [cp] * 10}}
+
+    write_seed_runs(fake, {
+        "100x50:pinn": {"source": "results/seed_check.csv", "runs": [
+            run(0, "naca0012_100x50_a4_m04", 0.014451, 0.516286, 20, 0, False, 0.1),
+            run(1, "naca0012_100x50_a4_m04_s1", 0.015379, 0.506552, 5, 0, False, 0.3),
+            run(2, "naca0012_100x50_a4_m04_s2", None, None, 0, 5, True, None)]},
+        "100x50:pinn_gs": {"source": "results/seed_check.csv", "runs": [run(0, "some_other_run", 0.0161, 0.5, 4, 0, False, 0.9)]},
+    })
     p = next(m for m in pinn_data.showdown()["meshes"] if m["mesh"] == "100x50")["pinn"][0]
     s = p["seeds"]
     assert s["source"] == "results/seed_check.csv" and s["n"] == 3 and s["n_with_result"] == 2 and s["n_without_result"] == 1
     assert s["cl"] == {"min": 0.506552, "max": 0.516286} and s["rms"] == {"min": 0.014451, "max": 0.015379}
     assert s["rounds_differ"] is True
     assert s["band"]["n_curves"] == 2 and s["band"]["cp_min"] == [0.1] * 10 and s["band"]["cp_max"] == [0.3] * 10
-    assert p["validity"]["supersonic"] is False and p["validity"]["cp_crit"] < -3
+    assert all("curve" not in r for r in s["runs"]) and s["runs"][2]["collapsed"] is True
+    assert p["validity"]["supersonic"] is False and p["validity"]["cp_crit"] < -3  # other variant (pinn_gs) must not leak in
 
 
 def test_note_parsing_handles_both_note_formats():
@@ -111,20 +102,40 @@ def test_endpoint(fake):
     assert r.status_code == 200 and r.json()["reference"]["label"] == "FVM 800x400"
 
 
-def test_endpoint_reports_missing_data(tmp_path, monkeypatch):
-    monkeypatch.setenv("AERONET_RESULTS_DIR", str(tmp_path / "none"))
-    monkeypatch.setenv("AERONET_FVM_DIR", str(tmp_path / "none"))
-    assert TestClient(app).get("/api/showdown").status_code == 503
+def test_endpoint_reports_missing_data(pinn_dir):
+    assert TestClient(app).get("/api/showdown").status_code == 503  # no case with a reference
 
 
-def test_real_summary_headline_if_present():
-    """On a checkout that has the real results: the 100x50 numbers shown equal results/summary.csv."""
-    path = pinn_data.results_dir() / "summary.csv"
-    if not path.exists() or not (pinn_data.fvm_dir() / "NACA0012_100_50_Cp.dat").exists():
-        pytest.skip("no results/ here")
-    rows = list(csv.DictReader(path.open(encoding="utf8")))
-    want = {(r["experiment"], r["method"], r["mesh"]): float(r["rms_cp"]) for r in rows if r["case"] == "NACA0012_a4" and r["rms_cp"] != ""}
+def test_a_summary_row_without_an_exported_case_leaves_the_run_out(fake):
+    write_results(fake, csv_rows(
+        SUMMARY_HEADER
+        + "B0,NACA0012_a4,fvm,100x50,0.4,4,0.045985,0.260987,0.480267,0.519329,0.01,,,measured,ref\n"
+        + "E2,NACA0012_a4,pinn,100x50,0.4,4,0.014451,0.082595,0.516286,0.519329,0.0006,577.6,,measured,rounds=20\n"
+        + "E2,NACA0012_a4,pinn_gs,100x50,0.4,4,0.0162,0.083,0.5,0.519329,0.0006,121.1,,measured,rounds=4\n"))
     m = next(m for m in pinn_data.showdown()["meshes"] if m["mesh"] == "100x50")
+    assert [p["method"] for p in m["pinn"]] == ["pinn"]  # pinn_gs has a row but no case file: no curve, so it is not shown
+
+
+def test_the_showdown_has_no_file_access_of_its_own():
+    """One loader: pinn_data no longer opens files or knows the results/ and NNfoil/ folders (pinn_cases is the only reader)."""
+    for gone in ("results_dir", "fvm_dir", "load_fvm_curve", "REPO_ROOT", "os", "csv", "json", "Path"):
+        assert not hasattr(pinn_data, gone), gone
+
+
+def test_exported_data_headline_matches_results_summary_csv():
+    """On a checkout with the real exported data: every E2/B0 number shown equals results/summary.csv (the export source)."""
+    from pathlib import Path
+
+    src = Path(__file__).resolve().parents[3] / "results" / "summary.csv"
+    if not src.exists() or not pinn_cases.has_cases():
+        pytest.skip("no results/ or no exported cases here")
+    rows = list(csv.DictReader(src.open(encoding="utf8")))
+    want = {(r["experiment"], r["method"], r["mesh"]): float(r["rms_cp"]) for r in rows if r["case"] == "NACA0012_a4" and r["rms_cp"] != ""}
+    d = pinn_data.showdown()
+    m = next(m for m in d["meshes"] if m["mesh"] == "100x50")
     assert m["fvm"]["rms"] == want[("B0", "fvm", "100x50")]
-    if ("E2", "pinn", "100x50") in want:
-        assert next(p for p in m["pinn"] if p["method"] == "pinn")["rms"] == want[("E2", "pinn", "100x50")]
+    assert next(p for p in m["pinn"] if p["method"] == "pinn")["rms"] == want[("E2", "pinn", "100x50")]
+    assert next(p for p in m["pinn"] if p["method"] == "pinn")["final_round"] == 20  # the final round of the 20-round run
+    for mesh in d["meshes"]:  # every run of the card has its exported case and a curve
+        assert mesh["fvm"]["curve"] is not None and all(p["status"] == "done" and p["curve"]["x"] for p in mesh["pinn"])
+    assert sum(len(m["pinn"]) for m in d["meshes"]) == len(pinn_data.E2_RUNS)
