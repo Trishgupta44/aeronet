@@ -3,3 +3,6 @@ research/.venv/
 *.pth
 results/runs/*/model.pt
 results/runs/*/train.log
+
+# Word lock files
+~$*

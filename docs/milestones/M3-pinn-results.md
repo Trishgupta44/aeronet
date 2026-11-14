@@ -2,7 +2,7 @@
 
 > **Update (2026-11-14, after the merge into `main`):** the app half described as pending below now exists: the PINN Lab (14 exported cases, training replay), the numbers dashboard and the redesigned Results page are in `app/` (see [`app/README.md`](../../app/README.md)). Sections 10 and the last section are kept as written at the time; the ablations (C11) and training on a drawn shape (C10) are still not done.
 
-Status: **research half complete (2026-11-14); the app half is pending** (PINN Lab, train-on-your-shape and the ablations are not done, section 10). Branch `plan-c-pinn-results`. Every number below comes from a file in `results/`: `summary.csv` (S), `e1_rounds.csv`, `e4_timing.json` and `e4_speed.md` (E4), `e6_replay.csv` and `e6_stop_rule.md` (E6), `seed_check.csv`, `drift_step1.csv`, or a run folder's `log.json` and `snapshots.json` (R). The tables in this document are printed by `research/report_tables.py` and the figures by `research/make_figures.py`, so none of them is typed by hand. Labels: **measured** = produced by code in this repo on this laptop; **quoted** = copied from the paper (arXiv 2401.08705, Cao, Song and Zhang) or another document and not re-run here; **fitted** = tuned to data. A number with no label is measured.
+Status: **complete except two optional items (2026-11-14): the research half and the app half (PINN Lab) are done; train-on-your-shape (C10) and the ablations (C11) are not done** (section 10). Branch `plan-c-pinn-results`. Every number below comes from a file in `results/`: `summary.csv` (S), `e1_rounds.csv`, `e4_timing.json` and `e4_speed.md` (E4), `e6_replay.csv` and `e6_stop_rule.md` (E6), `seed_check.csv`, `drift_step1.csv`, or a run folder's `log.json` and `snapshots.json` (R). The tables in this document are printed by `research/report_tables.py` and the figures by `research/make_figures.py`, so none of them is typed by hand. Labels: **measured** = produced by code in this repo on this laptop; **quoted** = copied from the paper (arXiv 2401.08705, Cao, Song and Zhang) or another document and not re-run here; **fitted** = tuned to data. A number with no label is measured.
 
 Common setting unless a section says otherwise: NNfoil (their PINN Euler solver, vendored and fixed in Milestone 1, [`M1-nnfoil-verified.md`](M1-nnfoil-verified.md)), NACA 0012, Mach 0.4, 4 degrees (the condition of the bundled FVM files, quoted from the paper section 3.2), network 5x128, L-BFGS, 8 CPU threads on an AMD Ryzen 9 6900HS laptop. The reference is always the FVM 800x400 file; the Cp error is the section 5.5 metric (`research/metrics.py::cp_error`: RMS over the nearest predicted surface point of every reference point with 0.02 <= x/c <= 0.98). PINN rows are the **final round** of each run unless stated.
 
@@ -194,7 +194,7 @@ Question: can a rule that does not use the FVM reference stop training near the 
 
 ## 10. What is NOT done
 
-- **PINN Lab (app): pending.** The app has no PINN Lab yet (tasks C6-C8: export of runs to case JSON, backend, frontend). The showdown's stopgap loader `app/backend/aeronet/pinn_data.py` is still what the app uses. No screenshot exists.
+- **PINN Lab (app): done after this report was first written** (tasks C6-C8): 14 exported cases, a case picker, the training replay, a numbers dashboard and a redesigned Results page; one loader (`app/backend/aeronet/pinn_cases.py`) now serves the app and the showdown. Screenshots: `docs/milestones/img/c8_*.png`, `merge_*.png`, `results_*.png`.
 - **Train a PINN on your drawn shape (C10): not started.**
 - **Ablations (C11): not started.** The robust loop, periodic input, hard far-field input and a panel-method prior are the only candidate fixes for the drift in section 3; none has been tried, so the drift has **no remedy** yet beyond the fixed early stop.
 - **No 400x200 PINN.** The 200x100 PINN training time is withheld.
@@ -233,4 +233,4 @@ Timed runs need an idle, awake machine and one training process at a time. Run f
 
 ## PINN Lab (app)
 
-**pending.** The PINN Lab tab, the training replay, the numbers dashboard and the screenshots are the app half of Milestone 3 (tasks C6-C8) and are not built. Nothing in this document depends on them.
+**Done** (added 2026-11-14): the PINN Lab tab, the training replay, the numbers dashboard and the screenshots are built (tasks C6-C8). See `docs/milestones/img/c8_*.png` (case picker, replay of the 50x25 drift, the collapsed run shown on purpose) and `merge_*.png` (light and dark). Open the app and go to the PINN LAB tab, or use `?pinn=<case id>&round=N`.
