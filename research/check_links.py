@@ -47,14 +47,28 @@ def links_in(text: str):
             yield n, m.group(1).strip("<>")
 
 
-def target_exists(md_file: Path, target: str) -> bool | None:
-    """True or False for a relative target, None when it is not a file link (external or an anchor on the same page)."""
+# The document builders (research/docs_build) read these sources and resolve image paths from the repository root,
+# so a path such as ``docs/milestones/img/x.png`` is correct there even though it is not relative to the file.
+ROOT_RELATIVE_DIRS = ("docs/deliverables_src",)
+
+
+def target_exists(md_file: Path, target: str, root: Path | None = None) -> bool | None:
+    """True or False for a relative target, None when it is not a file link (external or an anchor on the same page).
+
+    Files under ``ROOT_RELATIVE_DIRS`` may also name their targets relative to the repository ``root``.
+    """
     if not target or target.startswith("#") or target.lower().startswith(EXTERNAL):
         return None
     path = unquote(re.split(r"[#?]", target, maxsplit=1)[0])
     if not path:
         return None
-    return (md_file.parent / path).exists()
+    if (md_file.parent / path).exists():
+        return True
+    if root is not None:
+        rel = md_file.resolve().relative_to(root.resolve()).as_posix() if md_file.resolve().is_relative_to(root.resolve()) else ""
+        if any(rel.startswith(d + "/") for d in ROOT_RELATIVE_DIRS):
+            return (root / path).exists()
+    return False
 
 
 def find_broken(root: Path) -> list[tuple[Path, int, str]]:
@@ -62,7 +76,7 @@ def find_broken(root: Path) -> list[tuple[Path, int, str]]:
     broken = []
     for md in markdown_files(root):
         for line, target in links_in(md.read_text(encoding="utf8")):
-            if target_exists(md, target) is False:
+            if target_exists(md, target, root) is False:
                 broken.append((md, line, target))
     return broken
 

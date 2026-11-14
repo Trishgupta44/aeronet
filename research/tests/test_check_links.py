@@ -47,3 +47,15 @@ def test_main_prints_count_and_exit_code(tmp_path, capsys):
     _write(tmp_path / "README.md", "fine\n")
     assert check_links.main(["--root", str(tmp_path)]) == 0
     assert capsys.readouterr().out.strip() == "0 broken links"
+
+
+def test_builder_sources_may_use_repo_root_relative_paths(tmp_path):
+    """docs/deliverables_src files name images from the repository root (the document builders resolve them there)."""
+    (tmp_path / "docs" / "milestones" / "img").mkdir(parents=True)
+    (tmp_path / "docs" / "milestones" / "img" / "x.png").write_bytes(b"png")
+    (tmp_path / "docs" / "deliverables_src").mkdir(parents=True)
+    ok, no = "![ok](docs/milestones/img/x.png)", "![no](docs/milestones/img/none.png)"
+    (tmp_path / "docs" / "deliverables_src" / "report.md").write_text("\n".join([ok, no, ""]))
+    (tmp_path / "docs" / "other.md").write_text("\n".join(["![x](docs/milestones/img/x.png)", ""]))  # not a builder source
+    broken = {(p.name, t) for p, _, t in check_links.find_broken(tmp_path)}
+    assert broken == {("report.md", "docs/milestones/img/none.png"), ("other.md", "docs/milestones/img/x.png")}
