@@ -18,6 +18,20 @@ component, what the theory says, what the vendored code does, and how that was c
 - The paper was not re-read for this page; statements about "the paper" are limited to the abstract in
   `NNfoil/Readme.md`.
 
+## Where this is recorded
+
+- Milestone reports: [`M1-nnfoil-verified.md`](milestones/M1-nnfoil-verified.md) (the findings, CPU cost, first results and the
+  seed check) and [`M3-pinn-results.md`](milestones/M3-pinn-results.md) (experiments E1 to E6, which measure the accuracy
+  effects this page leaves open). The vendored file changes are listed in [`../NNfoil/AERONET_CHANGES.md`](../NNfoil/AERONET_CHANGES.md).
+- Commits (this repository, `git show <hash>`), all dated 2026-11-05:
+
+| Commit | What it did |
+|---|---|
+| `4732498` | upstream NNfoil vendored unmodified (the `u:NNN` line numbers refer to this commit) |
+| `6b10ac1`, `12ba8c1`, `1bed181`, `c77caa2`, `c475030`, `0822cad` | the fixes for findings 1, 2, 4, 5, 6, and 7 with 8 |
+| `77eeaf4` | this table, with the evidence for findings 3 and 10 (documented, not changed) |
+| `da138d8`, `1470816` | warm start that survives a failed first round, and grid sequencing (`--init-from`) |
+
 ## The table
 
 | Component | What the theory says | What the code does (file:line) | Test or evidence | Verdict |
@@ -39,7 +53,7 @@ component, what the theory says, what the vendored code does, and how that was c
 | Force integration (`Calculate_Force`) | Force coefficient vector = -integral of Cp n dl / c (p_inf drops out on a closed body). Cl = F . (-sin a, cos a), Cd = F . (cos a, sin a). The true inviscid subcritical Cd is 0 (d'Alembert), so a reported Cd is numerical error. | `Force = Cp_f * dl_f * nor_f`; `Cl = -(cos a F_y - sin a F_x)`, `Cd = -(sin a F_y + cos a F_x)` (`:223-226`, u:207-210): midpoint rule on the mesh polygon. | `test_calculate_force_matches_metrics_convention` (1e-5 against `metrics.forces_from_faces`); `test_panel_cp_through_forces_matches_panel_cl_cd` (the same convention reproduces the panel method's Cl and Cd to 1e-9); `test_uniform_cp_gives_zero_forces`; freestream gives Cl = Cd = 0; `test_fvm_forces_cl`: Cl 0.5193 for FVM 800x400 (asserted within 5e-4; measured). | **correct** |
 | Kutta condition and lift | A sharp trailing edge needs the Kutta condition to fix circulation, hence Cl. FVM gets it from numerical dissipation. | None is imposed. Circulation is selected implicitly by network smoothness and the value-only seam condition. | Reading (not in the plan; added in A9). | **limitation** |
 | Parametric angle of attack | The abstract claims an advantage on parametric problems (continuous angle of attack). | Network input is (xi, eta) only (`:99-100`); Ma and alpha are constructor arguments, one condition per model. | `Readme.md` abstract (quoted); `test_flow_condition_arguments`. | **limitation** |
-| Mesh generator (finding 3) | Winslow/Thompson: alpha x_xixi - 2 beta x_xieta + gamma x_etaeta = 0. The Jacobi update used here has the fixed point alpha X_xixi - c beta X_xieta + gamma X_etaeta = 0 with central stencils, so c must be 2. | `mesh_gen.py:66,68` use `0.5 * beta * diff2d(dXdxi, nodes, 0)`, c = 0.5. Not changed: the bundled meshes and the FVM data came from this code. | `results/finding3_mesh_smoothing.csv` (measured, 50x25): c = 0.5 takes 3287 iterations, max \|Winslow residual\| 1.95e-4, min grid angle 85.98 deg, Jacobian single-signed, max distance to the bundled mesh 3.3e-4 (so the bundled mesh came from this code; the bundled mesh itself has residual 1.95e-4). c = 2 takes 3290 iterations, residual 1.99e-6, min angle 86.85 deg, single-signed, distance 0.011. Low impact: both meshes are valid. Tests: `test_finding3_*`. Corrected generator: `research/ogrid.py` (Plan C, not yet written). | **bug (documented, not changed)** |
+| Mesh generator (finding 3) | Winslow/Thompson: alpha x_xixi - 2 beta x_xieta + gamma x_etaeta = 0. The Jacobi update used here has the fixed point alpha X_xixi - c beta X_xieta + gamma X_etaeta = 0 with central stencils, so c must be 2. | `mesh_gen.py:66,68` use `0.5 * beta * diff2d(dXdxi, nodes, 0)`, c = 0.5. Not changed: the bundled meshes and the FVM data came from this code. | `results/finding3_mesh_smoothing.csv` (measured, 50x25): c = 0.5 takes 3287 iterations, max \|Winslow residual\| 1.95e-4, min grid angle 85.98 deg, Jacobian single-signed, max distance to the bundled mesh 3.3e-4 (so the bundled mesh came from this code; the bundled mesh itself has residual 1.95e-4). c = 2 takes 3290 iterations, residual 1.99e-6, min angle 86.85 deg, single-signed, distance 0.011. Low impact: both meshes are valid. Tests: `test_finding3_*`. Corrected generator (cross coefficient 2): `research/ogrid.py`, used for the cylinder and NACA 2412 meshes in `results/meshes/`. | **bug (documented, not changed)** |
 | Finding 1: device | Code must run on a machine without CUDA. | Upstream forced `torch.device("cuda:0" if 1 else "cpu")` (u:269). Now `pick_device()` (`:21-22`, used at `:301`). | `test_pick_device_falls_back_to_cpu`. | **bug (fixed in 6b10ac1)** |
 | Finding 2: positivity of p and rho | a^2 = gamma p / rho and 1/rho need p > 0 and rho > 0. | Upstream used raw outputs (u:193-197). Now `softplus(.) + 1e-3` on p and rho, flag `positivity` default on (`:45-47`). The floor and softplus change the function class; their effect on accuracy is for Plan C to measure. | `test_positivity_keeps_p_rho_above_floor`, `test_positivity_off_is_raw`. | **bug (fixed in 12ba8c1)** |
 | Finding 4: CPU threads | Not a numerical issue: single-threaded runs are several times slower on a 16-thread machine. | Upstream `torch.set_num_threads(1)` (u:265). Now `min(8, os.cpu_count() or 1)` in `__main__` (`:297`). | No test (a runtime setting). | **bug (fixed in 1bed181)** |
@@ -85,5 +99,6 @@ comparison" and that LBFGS often stops early. Parametric NNfoil on NACA 2412 (se
   The remaining difference comes from the finite-difference Jacobian.
 - The weight-spread numbers and the wrong-sign counts are in `results/finding10_jacobian.csv`; the mesh-smoothing
   numbers are in `results/finding3_mesh_smoothing.csv`. Timings in that CSV are machine-dependent and are not quoted.
-- Plan C measures the accuracy effects (positivity on or off, `periodic_jacobian` on or off, J^2 versus other weights).
-  Nothing here claims an accuracy result for the trained network.
+- The accuracy effects were measured afterwards: positivity on or off is experiment E1 in [`M3-pinn-results.md`](milestones/M3-pinn-results.md)
+  (neither mode wins; positivity only changes when the drift starts). No training run in M3 varies `periodic_jacobian` or the J^2 weights. Nothing on
+  this page claims an accuracy result for the trained network.

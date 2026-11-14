@@ -89,4 +89,4 @@ checked.
 - **One unexplained moment:** during early browser testing the Draw controls changed by themselves (sports car, alpha 1
   deg). It did not recur after a clean reload; the likely cause is another person or tool using the shared browser
   window, but this is unproven.
-- **The solver is still the panel method.** The PINN Lab section is a placeholder until Milestone 3.
+- **The solver is still the panel method.** The PINN Lab section is a placeholder until Milestone 3. (Update 2026-11-14: the PINN Lab and tabs now exist; see `app/README.md`. The current demo script is [`../demo_script.md`](../demo_script.md).)
