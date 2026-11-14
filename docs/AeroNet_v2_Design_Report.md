@@ -200,8 +200,9 @@ and when a run finishes you regenerate the documents in seconds.
 
 ## 6. Things only you can do
 
-1. **Tell Sonnet (Plan D asks you) whether the original deliverables** (report, slides, synopsis) exist
-   somewhere outside the repo. The README lists a `deliverables/` folder, but it isn't there.
+1. **Supply the report details** (Plan D builds the report in your institute's template with `[FILL IN]` fields): student
+   names and enrolment numbers, team roles, supervisor and HOD, course/semester/year, logo, PO/PSO list, Turnitin report.
+   (Updated 2026-11-14: the institute template and cover sample are in `docs/DOCS NEEDED FOR MAJOR/`; `deliverables/` is generated.)
 2. **Record the 2-minute backup video** (Plan D5 gives the shot list).
 3. **Confirm the flow conditions** for the NACA 2412 and random-airfoil files from the NNfoil paper, if
    Sonnet can't read it.
