@@ -31,9 +31,9 @@ function strokeSides(g, X, Y, curveSides, colors, width, dash) {
 /** The y range shown: from the reference, the panel curve and the same-mesh FVM; the PINN only widens it when it did not collapse. */
 export function yRange({ c, cp, show }) {
   const vals = [];
-  if (show.ref && c.reference) c.reference.points.forEach((p) => vals.push(p[2]));
+  if (show.ref && c.reference?.points) c.reference.points.forEach((p) => vals.push(p[2])); // no points in a public deployment: skipped
   if (show.panel && c.panel?.surface) vals.push(...c.panel.surface.cp);
-  if (show.same && c.fvm_same_mesh) c.fvm_same_mesh.points.forEach((p) => vals.push(p[2]));
+  if (show.same && c.fvm_same_mesh?.points) c.fvm_same_mesh.points.forEach((p) => vals.push(p[2]));
   if (!vals.length || !c.metrics?.collapsed) vals.push(...cp);
   const lo = Math.min(-1, Math.floor((Math.min(...vals) - 0.1) * 2) / 2);
   const hi = Math.max(1.5, Math.ceil(Math.max(...vals) * 2) / 2);
@@ -82,7 +82,7 @@ function draw(g, w, h, { c, cp, show }) {
     const p = c.panel.surface;
     strokeSides(g, X, Y, sides(p.x, p.cp), [cssVar('--muted'), cssVar('--muted')], 1.5, [6, 4]);
   }
-  if (show.ref && c.reference) {
+  if (show.ref && c.reference?.points) {
     g.strokeStyle = cssVar('--ref');
     g.lineWidth = 1;
     c.reference.points.forEach((p) => {
@@ -91,7 +91,7 @@ function draw(g, w, h, { c, cp, show }) {
       g.stroke();
     });
   }
-  if (show.same && c.fvm_same_mesh) {
+  if (show.same && c.fvm_same_mesh?.points) {
     g.fillStyle = cssVar('--ok');
     c.fvm_same_mesh.points.forEach((p) => g.fillRect(X(p[0]) - 2.5, Y(p[2]) - 2.5, 5, 5));
   }
@@ -114,5 +114,5 @@ function draw(g, w, h, { c, cp, show }) {
 export default function PinnCpChart({ c, cp, show }) {
   const ref = useRef(null);
   useCanvasDraw(ref, (w) => Math.max(260, Math.min(380, w * 0.62)), (g, w, h) => draw(g, w, h, { c, cp, show }), [c, cp, show.ref, show.same, show.panel]);
-  return <canvas id="pinncp" ref={ref} role="img" aria-label="Wall pressure coefficient of the PINN against the FVM reference and the panel method" />;
+  return <canvas id="pinncp" ref={ref} role="img" aria-label="Wall pressure coefficient of the PINN against the panel method, and against the FVM reference where it is available" />;
 }

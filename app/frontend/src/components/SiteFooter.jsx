@@ -11,7 +11,7 @@ export default function SiteFooter() {
         <div className="footer-notes">
           <p>
             Flow solver for this view: Hess–Smith panel method (inviscid, subsonic, Prandtl–Glauert correction). The neural solver is the NNfoil
-            PINN by Cao, Song and Zhang (arXiv 2401.08705), used with credit; it has no licence, so this repository stays private.
+            PINN by Cao, Song and Zhang (arXiv 2401.08705), used with credit and with the author's permission (its repository has no licence file; see docs/DEPLOY.md).
           </p>
           <p>
             Scope: inviscid, subsonic, 2D. The drag shown is a numerical error, not a prediction. It complements high-fidelity CFD and does not replace it.

@@ -75,11 +75,32 @@ export function cpError(surface, refPoints, cp) {
   return n ? { rms: Math.sqrt(sum / n), max, n } : { rms: null, max: null, n: 0 };
 }
 
-/** Cp RMS against the reference for every snapshot (null each when the case has no reference). Computed here, not exported. */
+/**
+ * Cp RMS against the reference for every snapshot (null each when there is nothing to compare with). Computed here from the reference
+ * points when the case has them; a public deployment serves the case WITHOUT the FVM points (NNfoil has no licence for redistribution)
+ * but with `rms_by_round`, the same numbers computed on the server before the points were dropped.
+ */
 export function roundRms(c) {
   const snaps = c.snapshots ?? [];
-  if (!c.reference?.points?.length) return snaps.map(() => null);
-  return snaps.map((s) => cpError(c.surface, c.reference.points, s.cp).rms);
+  if (c.reference?.points?.length) return snaps.map((s) => cpError(c.surface, c.reference.points, s.cp).rms);
+  if (Array.isArray(c.rms_by_round) && c.rms_by_round.length === snaps.length) return c.rms_by_round.map((v) => (Number.isFinite(v) ? v : null));
+  return snaps.map(() => null);
+}
+
+/**
+ * What a case says about the finite-volume (FVM) data, in either form: the full case (`reference` and `fvm_same_mesh` with their
+ * points) or the public one (`fvm_ref_name`, `fvm_same_errors` and `fvm_curves_withheld`, no points). `points` is null whenever the curve
+ * is not there, so a chart can simply skip it. `ref` and `same` are null when the case has no such reference at all.
+ */
+export function fvmView(c) {
+  const refPoints = c.reference?.points?.length ? c.reference.points : null;
+  const refName = c.reference?.name ?? c.fvm_ref_name ?? null;
+  const s = c.fvm_same_mesh ?? c.fvm_same_errors ?? null;
+  return {
+    withheld: !!c.fvm_curves_withheld,
+    ref: refName ? { name: refName, points: refPoints } : null,
+    same: s ? { name: s.name, rms: s.rms, max: s.max, cl: s.cl, points: s.points?.length ? s.points : null } : null,
+  };
 }
 
 /** Rows of the results table for one experiment ('all' or empty: every row), optionally one source (measured, quoted, fitted). */

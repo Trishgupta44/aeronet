@@ -1,4 +1,5 @@
 // The four control cards on the left: solver, airfoil, flow conditions, reference.
+import FvmCredit from './FvmCredit.jsx';
 
 export function SolverCard({ solvers, value, onChange }) {
   const pinn = solvers.find((s) => s.id === 'pinn');
@@ -69,7 +70,7 @@ export function ReferenceCard({ status, onLoadSample, onClear, onFile, sampleAva
         <label htmlFor="file" className="hint">Or load your own NNfoil <code>*_Cp.dat</code> file:</label>
         <input type="file" id="file" accept=".dat,.txt" onChange={(e) => { onFile(e.target.files[0]); e.target.value = ''; }} />
       </div>
-      {!sampleAvailable && <div className="hint">The bundled FVM sample is not part of this deployment (the NNfoil data has no licence for redistribution); your own file works as usual.</div>}
+      {sampleAvailable ? <FvmCredit /> : <div className="hint">The bundled FVM sample is not part of this deployment (strict mode: NNfoil's reference data is withheld); your own file works as usual.</div>}
       <div className={`status ${status.kind}`} id="refStatus" role="status">{status.text}</div>
     </section>
   );

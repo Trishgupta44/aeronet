@@ -7,8 +7,10 @@
     "dev": "vite",
     "build": "vite build",
     "check:public": "node scripts/check-public-bundle.mjs",
+    "check:public:strict": "node scripts/check-public-bundle.mjs --withhold",
     "build:public": "npm run check:public && vite build",
     "build:static": "npm run check:public && vite build --mode static",
+    "build:static:strict": "npm run check:public:strict && vite build --mode static",
     "preview": "vite preview",
     "test": "vitest run"
   },

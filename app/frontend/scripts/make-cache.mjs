@@ -1,6 +1,7 @@
 // Regenerate the saved answers used by the offline fallback (safe demo mode).
 //
-//   (backend running, with results/ available)   node scripts/make-cache.mjs [http://localhost:8000]
+//   (backend running)   node scripts/make-cache.mjs [http://localhost:8000] [output file]
+//   A backend started with AERONET_WITHHOLD_FVM_DATA=1 gives a bundle without any FVM curve (strict mode, docs/DEPLOY.md).
 //
 // Writes public/cache/bundle.json: { generated_utc, api_version, entries: { <cacheKey>: <answer> } }. The requests are built
 // with the same cacheKey() the browser uses, for every airfoil preset and every shape in the library at its starting angle
@@ -15,7 +16,7 @@ import { fileURLToPath } from 'node:url';
 import { cacheKey } from '../src/offline/cacheKey.js';
 
 const API = (process.argv[2] ?? 'http://localhost:8000').replace(/\/$/, '');
-const OUT = resolve(dirname(fileURLToPath(import.meta.url)), '..', 'public', 'cache', 'bundle.json');
+const OUT = process.argv[3] ? resolve(process.argv[3]) : resolve(dirname(fileURLToPath(import.meta.url)), '..', 'public', 'cache', 'bundle.json'); // optional 2nd argument: another output file
 const POLAR_ALPHAS = Array.from({ length: 23 }, (_, k) => k - 10); // same as hooks/usePolar.js
 const RE_CHOICES = [1e5, 5e5, 1e6, 3e6, 1e7]; // same as ViscousCard
 const GRID = 100; // field resolution of the saved solutions (keeps the file small)
@@ -93,6 +94,10 @@ function halveField(f) {
 }
 
 const health = await call('/api/health');
+// A backend that withholds the FVM data must not inherit FVM-bearing answers from an earlier (include-mode) bundle: only the viscous answers
+// (which need an optional install and hold no FVM data) are carried over.
+const caps0 = await call('/api/capabilities').catch(() => null);
+if (caps0 && caps0.fvm_curves === false) previous = Object.fromEntries(Object.entries(previous).filter(([k]) => k.startsWith('/api/viscous|')));
 for (const p of ['/api/solvers', '/api/airfoils', '/api/shapes', '/api/capabilities', '/api/reference/sample', '/api/showdown', '/api/tradeoff']) await save(p);
 
 const airfoils = entries[cacheKey('/api/airfoils')];

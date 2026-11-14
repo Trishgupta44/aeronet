@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { getPinnCase, getPinnCases } from '../api.js';
 import { fmt, fmtMs, fmtSec, meshLabel } from '../utils/format.js';
-import { caseGroups, caseToResult, replayCurve, roundRms, shortVariant } from '../utils/pinnCase.js';
+import { caseGroups, caseToResult, fvmView, replayCurve, roundRms, shortVariant } from '../utils/pinnCase.js';
 import FlowCanvas, { DEFAULT_LAYERS } from './FlowCanvas.jsx';
+import FvmCredit from './FvmCredit.jsx';
+import FvmWithheldNote from './FvmWithheldNote.jsx';
 import { TrainingCard } from './InfoCards.jsx';
 import PinnCpChart from './PinnCpChart.jsx';
 import Tag from './Tag.jsx';
@@ -61,8 +63,7 @@ function Tile({ k, v, n, tag = 'measured', title }) {
 function Tiles({ c }) {
   const m = c.metrics ?? {};
   const t = c.timing ?? {};
-  const ref = c.reference;
-  const same = c.fvm_same_mesh;
+  const { ref, same } = fvmView(c); // the names and numbers are there in a public deployment too, only the FVM curves are not
   const panel = c.panel;
   return (
     <div className="metrics metrics--lab" aria-label="Numbers for this case">
@@ -203,6 +204,7 @@ export default function PinnLab({ paused, onPausedChange }) {
 
   const result = useMemo(() => (c ? caseToResult(c) : null), [c]);
   const stats = useMemo(() => (c ? roundRms(c) : []), [c]);
+  const fvm = useMemo(() => (c ? fvmView(c) : null), [c]);
   const rmsSeries = useMemo(() => (c?.snapshots ? { rounds: c.snapshots.map((s) => s.round), values: stats } : null), [c, stats]);
   const cur = c ? replayCurve(c, idx) : null;
   const cp = cur?.cp ?? c?.surface?.cp ?? [];
@@ -245,18 +247,19 @@ export default function PinnLab({ paused, onPausedChange }) {
               hint="The colours, isobars and particles all come from the trained network's own pressure and velocity (the final round). Inviscid Euler flow, no separation or wake."
               footer={<p className="src">Network output on the mesh, resampled onto the app's regular grid. Hover the picture to read Cp and speed.{c.field_note ? ` ${c.field_note}` : ''}</p>} />
             <section className="card">
-              <h2>Wall pressure: PINN against FVM and panel method</h2>
+              <h2>{fvm.ref?.points || fvm.same?.points ? 'Wall pressure: PINN against FVM and panel method' : 'Wall pressure: PINN against the panel method'}</h2>
               <div className="seg" role="group" aria-label="Curves to compare">
-                {c.reference && <button type="button" aria-pressed={show.ref} onClick={() => toggle('ref')}>{c.reference.name}</button>}
-                {c.fvm_same_mesh && <button type="button" aria-pressed={show.same} onClick={() => toggle('same')}>{c.fvm_same_mesh.name}, same mesh</button>}
+                {fvm.ref?.points && <button type="button" aria-pressed={show.ref} onClick={() => toggle('ref')}>{fvm.ref.name}</button>}
+                {fvm.same?.points && <button type="button" aria-pressed={show.same} onClick={() => toggle('same')}>{fvm.same.name}, same mesh</button>}
                 {c.panel && <button type="button" aria-pressed={show.panel} onClick={() => toggle('panel')}>Panel method</button>}
               </div>
               <PinnCpChart c={c} cp={cp} show={show} />
+              {fvm.withheld ? <FvmWithheldNote /> : (fvm.ref?.points || fvm.same?.points) && <FvmCredit />}
               <div className="legend">
                 <span><i style={{ background: 'var(--up)' }} />PINN upper surface</span>
                 <span><i style={{ background: 'var(--lo)' }} />PINN lower surface</span>
-                {show.ref && c.reference && <span><i style={{ background: 'transparent', border: '1.5px solid var(--ref)' }} />{c.reference.name} (reference)</span>}
-                {show.same && c.fvm_same_mesh && <span><i style={{ background: 'var(--ok)', borderRadius: 0 }} />{c.fvm_same_mesh.name}</span>}
+                {show.ref && fvm.ref?.points && <span><i style={{ background: 'transparent', border: '1.5px solid var(--ref)' }} />{fvm.ref.name} (reference)</span>}
+                {show.same && fvm.same?.points && <span><i style={{ background: 'var(--ok)', borderRadius: 0 }} />{fvm.same.name}</span>}
                 {show.panel && c.panel && <span><i style={{ background: 'transparent', border: '1.5px dashed var(--muted)' }} />panel method</span>}
               </div>
               <h2 className="replay-title">Training replay: watch it learn</h2>

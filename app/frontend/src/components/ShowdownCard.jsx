@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { getShowdown } from '../api.js';
 import { cssVar, useCanvasDraw } from '../hooks/useCanvasDraw.js';
+import FvmCredit from './FvmCredit.jsx';
+import FvmWithheldNote from './FvmWithheldNote.jsx';
 
 const fmt = (v, d = 4) => (v == null ? '–' : v.toFixed(d));
 
@@ -225,11 +227,9 @@ function ShowdownBody({ data }) {
         </div>
       )}
       {ready && <Evidence pinn={pinn} mesh={mesh} mach={data.case.mach} />}
+      {!data.fvm_curves_withheld && (data.reference?.curve || entry.fvm?.curve) && <FvmCredit />}
       {data.fvm_curves_withheld && (
-        <p className="hint">
-          The finite-volume pressure curves are not shown in this deployment: the NNfoil data they come from has no licence for redistribution. The errors above
-          were computed against them and are real; the PINN curves are this project's own results.
-        </p>
+        <FvmWithheldNote>The PINN curves are this project's own results.</FvmWithheldNote>
       )}
       <p className="src">
         Source: results/summary.csv (experiments B0 and E2) and the final-round Cp of each run; the final round is used, never the best round (choosing it would use the reference answer).

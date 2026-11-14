@@ -1,10 +1,13 @@
 import { useCallback, useMemo, useState } from 'react';
+import { useCapabilities } from '../hooks/useCapabilities.js';
 import { useRoundsE1 } from '../hooks/useResults.js';
 import {
   cylinderBars, failureItems, headlineTiles, meshStudy, meshSummary, trajectories, trajectorySummary,
 } from '../utils/evidence.js';
 import { fmt, meshLabel } from '../utils/format.js';
 import BarDotChart from './BarDotChart.jsx';
+import FvmCredit from './FvmCredit.jsx';
+import FvmWithheldNote from './FvmWithheldNote.jsx';
 import LineChart from './LineChart.jsx';
 import ResultsTable from './ResultsTable.jsx';
 import SpeedCard from './SpeedCard.jsx';
@@ -193,6 +196,7 @@ function Failures({ rows, e1, onNumbers }) {
  */
 export default function ResultsPage({ rows, error, result }) {
   const { data: e1, error: e1Error } = useRoundsE1();
+  const caps = useCapabilities();
   const [open, setOpen] = useState(false);
   const [focus, setFocus] = useState({ exp: 'all', n: 0 });
   const showNumbers = useCallback((exp) => {
@@ -209,6 +213,7 @@ export default function ResultsPage({ rows, error, result }) {
   return (
     <div className="results-page">
       <StatBand rows={rows} />
+      {caps.fvm_curves === false ? <FvmWithheldNote>Every number on this page is unchanged by that.</FvmWithheldNote> : <FvmCredit />}
       <div className="findings">
         <MeshFinding rows={rows} />
         <TrajectoryFinding rows={rows} e1={e1} error={e1Error} />

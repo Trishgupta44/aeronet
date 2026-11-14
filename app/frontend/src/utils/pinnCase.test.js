@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { caseGroups, caseToResult, cpError, findRow, methodLabel, replayCurve, roundRms, rowsFor, shortVariant, snapshotResult } from './pinnCase.js';
+import { yRange } from '../components/PinnCpChart.jsx';
+import { caseGroups, caseToResult, cpError, findRow, fvmView, methodLabel, replayCurve, roundRms, rowsFor, shortVariant, snapshotResult } from './pinnCase.js';
 
 // A 6-face toy case: the faces run counter-clockwise from the trailing edge, so the minimum x (the leading edge) is at face 3.
 // Reference points lie exactly on the faces, so the Cp error of the final round is easy to state by hand.
@@ -109,6 +110,42 @@ describe('roundRms', () => {
     expect(r[1]).toBeCloseTo(0.1, 12);
     expect(r[0]).toBeGreaterThan(0.1);
     expect(roundRms(toy({ reference: null }))).toEqual([null, null]);
+  });
+});
+
+// The case as a public deployment serves it (backend aeronet.pinn_cases.strip_fvm): no FVM points anywhere, the numbers kept.
+function publicToy(extra = {}) {
+  const { reference, ...rest } = toy();
+  return { ...rest, fvm_ref_name: reference.name, rms_by_round: [0.25, 0.1], fvm_same_errors: { name: 'FVM same', rms: 0.04, max: 0.2, cl: 0.4 }, fvm_curves_withheld: true, ...extra };
+}
+
+describe('a case served without the FVM curves (public deployment)', () => {
+  it('has the per-round Cp RMS from the server instead of computing it from the points', () => {
+    expect(roundRms(publicToy())).toEqual([0.25, 0.1]);
+    expect(roundRms(publicToy({ rms_by_round: undefined }))).toEqual([null, null]);
+    expect(roundRms(publicToy({ rms_by_round: [0.1] }))).toEqual([null, null]); // wrong length: not used
+    expect(roundRms(publicToy({ rms_by_round: [0.25, null] }))).toEqual([0.25, null]);
+  });
+  it('is described by fvmView with names and numbers but no points', () => {
+    const v = fvmView(publicToy());
+    expect(v.withheld).toBe(true);
+    expect(v.ref).toEqual({ name: 'FVM ref', points: null });
+    expect(v.same).toEqual({ name: 'FVM same', rms: 0.04, max: 0.2, cl: 0.4, points: null });
+  });
+  it('fvmView of a full case keeps the points, and of a case with no reference says so', () => {
+    const full = fvmView(toy({ fvm_same_mesh: { name: 'FVM s', rms: 0.1, max: 0.2, cl: 0.4, points: [[0.1, 0.02, 0.3]] } }));
+    expect(full.withheld).toBe(false);
+    expect(full.ref.points).toHaveLength(6);
+    expect(full.same.points).toEqual([[0.1, 0.02, 0.3]]);
+    expect(fvmView(toy({ reference: null, fvm_same_mesh: null }))).toEqual({ withheld: false, ref: null, same: null });
+  });
+  it('still gives the flow view and the wall-Cp chart range (no crash, the PINN and panel curves set the range)', () => {
+    const c = publicToy({ panel: { cl: 0.5, surface: { x: [0.5], y: [0], cp: [-2.2] } } });
+    expect(caseToResult(c).surface.cp).toEqual(TOY_CP);
+    const [lo, hi] = yRange({ c, cp: TOY_CP, show: { ref: true, same: true, panel: true } });
+    expect(lo).toBeLessThanOrEqual(-2.2 - 0.1);
+    expect(hi).toBeGreaterThanOrEqual(1.5);
+    expect(() => yRange({ c: publicToy(), cp: TOY_CP, show: { ref: true, same: true, panel: false } })).not.toThrow();
   });
 });
 
