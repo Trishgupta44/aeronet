@@ -1,10 +1,11 @@
 # Only what the image needs goes into the build context. NNfoil, research code, results, docs and the prototype stay out.
 *
 !app/backend/aeronet
+!app/backend/data
 !app/backend/requirements-deploy.txt
 !app/backend/requirements-viscous.txt
 !app/frontend
-!deploy/data/results
+!deploy/make_data.py
 app/frontend/node_modules
 app/frontend/dist
 **/__pycache__
